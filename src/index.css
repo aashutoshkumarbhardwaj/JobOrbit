@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* Job Tracker Design System - Modern, Vibrant, Loveable */
+
+@layer base {
+  :root {
+    /* Warm white background */
+    --background: 40 33% 99%;
+    --foreground: 224 71% 14%;
+
+    /* Cards - Pure white with warmth */
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 14%;
+
+    /* Primary - Soft Indigo Blue (trust & focus) */
+    --primary: 225 84% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Light blue tint */
+    --secondary: 220 60% 96%;
+    --secondary-foreground: 225 84% 45%;
+
+    /* Muted - Warm gray */
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 15% 50%;
+
+    /* Accent - Coral/Peach (warmth & motivation) */
+    --accent: 17 100% 68%;
+    --accent-foreground: 17 100% 25%;
+
+    /* Highlight - Vibrant Yellow rgb(255, 230, 8) = 54 100% 52% */
+    --highlight: 54 100% 52%;
+    --highlight-foreground: 54 100% 15%;
+    --highlight-light: 54 100% 90%;
+
+    /* Success - Mint/Teal (progress) */
+    --success: 158 64% 52%;
+    --success-foreground: 158 64% 15%;
+    --success-light: 158 64% 94%;
+
+    /* Warning - Soft Amber */
+    --warning: 38 92% 60%;
+    --warning-foreground: 38 92% 20%;
+    --warning-light: 38 92% 94%;
+
+    /* Destructive - Muted Red */
+    --destructive: 0 65% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 65% 95%;
+
+    /* Interview - Blue */
+    --interview: 225 84% 58%;
+    --interview-foreground: 0 0% 100%;
+    --interview-light: 225 84% 95%;
+
+    /* Pending - Amber/Orange */
+    --pending: 28 100% 55%;
+    --pending-foreground: 28 100% 20%;
+    --pending-light: 28 100% 94%;
+
+    /* Applied - Soft gray-blue */
+    --applied: 220 15% 55%;
+    --applied-foreground: 0 0% 100%;
+    --applied-light: 220 15% 95%;
+
+    --border: 220 20% 92%;
+    --input: 220 20% 92%;
+    --ring: 225 84% 58%;
+
+    --radius: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+
+    /* Grid pattern */
+    --grid-color: 220 20% 90%;
+
+    /* Shadows */
+    --shadow-soft: 0 2px 8px -2px hsl(225 84% 58% / 0.08), 0 4px 16px -4px hsl(225 84% 58% / 0.12);
+    --shadow-card: 0 1px 3px hsl(220 20% 20% / 0.04), 0 4px 12px hsl(220 20% 20% / 0.06);
+    --shadow-hover: 0 4px 16px -4px hsl(225 84% 58% / 0.15), 0 8px 24px -8px hsl(225 84% 58% / 0.2);
+    --shadow-glow: 0 0 20px hsl(54 100% 52% / 0.3);
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(225 84% 58%), hsl(245 84% 62%));
+    --gradient-hero: linear-gradient(135deg, hsl(225 84% 97%), hsl(40 33% 99%));
+    --gradient-coral: linear-gradient(135deg, hsl(17 100% 68%), hsl(28 100% 65%));
+    --gradient-highlight: linear-gradient(135deg, hsl(54 100% 52%), hsl(45 100% 55%));
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 71% 14%;
+    --sidebar-primary: 225 84% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 60% 96%;
+    --sidebar-accent-foreground: 225 84% 45%;
+    --sidebar-border: 220 20% 92%;
+    --sidebar-ring: 225 84% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  .shadow-hover {
+    box-shadow: var(--shadow-hover);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-coral {
+    background: var(--gradient-coral);
+  }
+
+  .gradient-highlight {
+    background: var(--gradient-highlight);
+  }
+
+  /* Graph paper grid background */
+  .bg-grid {
+    background-image: 
+      linear-gradient(hsl(var(--grid-color)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--grid-color)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .bg-grid-large {
+    background-image: 
+      linear-gradient(hsl(var(--grid-color)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--grid-color)) 1px, transparent 1px),
+      linear-gradient(hsl(var(--grid-color) / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--grid-color) / 0.3) 1px, transparent 1px);
+    background-size: 48px 48px, 48px 48px, 12px 12px, 12px 12px;
+  }
+
+  .bg-grid-dots {
+    background-image: radial-gradient(circle, hsl(var(--grid-color)) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    0% { box-shadow: 0 0 5px hsl(54 100% 52% / 0.3); }
+    100% { box-shadow: 0 0 20px hsl(54 100% 52% / 0.6); }
+  }
+
+  .highlight-text {
+    background: linear-gradient(120deg, hsl(54 100% 52% / 0.3) 0%, hsl(54 100% 52% / 0.3) 100%);
+    background-repeat: no-repeat;
+    background-size: 100% 40%;
+    background-position: 0 90%;
+  }
+
+  .glass-card {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+}
