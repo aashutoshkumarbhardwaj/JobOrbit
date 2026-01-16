@@ -62,6 +62,116 @@ export type Database = {
         }
         Relationships: []
       }
+      landing_stats: {
+        Row: {
+          id: string
+          stat_key: string
+          stat_value: string
+          stat_label: string
+          display_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          stat_key: string
+          stat_value: string
+          stat_label: string
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          stat_key?: string
+          stat_value?: string
+          stat_label?: string
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      testimonials: {
+        Row: {
+          id: string
+          quote: string
+          author_name: string
+          author_role: string
+          author_company: string
+          rating: number
+          is_featured: boolean
+          display_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          quote: string
+          author_name: string
+          author_role: string
+          author_company: string
+          rating?: number
+          is_featured?: boolean
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          quote?: string
+          author_name?: string
+          author_role?: string
+          author_company?: string
+          rating?: number
+          is_featured?: boolean
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string | null
+          avatar_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          full_name?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+          created_at?: string
+          id?: string
+          interview_date?: string | null
+          location?: string | null
+          notes?: string | null
+          role?: string
+          salary?: string | null
+          status?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

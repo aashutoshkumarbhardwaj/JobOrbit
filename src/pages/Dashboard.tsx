@@ -3,18 +3,26 @@ import { StatCard } from "@/components/ui/stat-card";
 import { ActivityCard } from "@/components/dashboard/ActivityCard";
 import { WeeklyChart } from "@/components/dashboard/WeeklyChart";
 import { Button } from "@/components/ui/button";
+import { Banner } from "@/components/ui/banner";
 import { StatusType } from "@/components/ui/status-badge";
 import { AddJobDialog } from "@/components/AddJobDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { 
+  StatCardSkeleton,
+  WeeklyChartSkeleton,
+  ActivityCardSkeleton
+} from "@/components/ui/loading-skeletons";
+import { 
   FileText, 
   Calendar, 
   Award, 
   XCircle,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  Target,
+  Zap
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
@@ -29,7 +37,7 @@ export default function Dashboard() {
     }
   }, [user, authLoading, navigate]);
 
-  const { data: jobs = [], refetch } = useQuery({
+  const { data: jobs = [], refetch, isLoading } = useQuery({
     queryKey: ["jobs", user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -62,11 +70,40 @@ export default function Dashboard() {
 
   const userName = user?.user_metadata?.full_name?.split(" ")[0] || "there";
 
-  if (authLoading) {
+  if (authLoading || isLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          {/* Header Skeleton */}
+          <div className="animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="space-y-2">
+                <div className="h-10 w-64 bg-muted rounded animate-pulse" />
+                <div className="h-6 w-96 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-32 bg-muted rounded animate-pulse" />
+                <div className="h-10 w-32 bg-muted rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Grid Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <StatCardSkeleton key={i} />
+            ))}
+          </div>
+
+          {/* Main Content Grid Skeleton */}
+          <div className="grid lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-3">
+              <WeeklyChartSkeleton />
+            </div>
+            <div className="lg:col-span-2">
+              <ActivityCardSkeleton />
+            </div>
+          </div>
         </div>
       </Layout>
     );
@@ -74,25 +111,47 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 space-y-6">
+        {/* Motivational Banner */}
+        {stats.total >= 5 && (
+          <Banner
+            variant="gradient"
+            title="🔥 You're on fire!"
+            message={`Amazing work! You've tracked ${stats.total} applications. Keep this momentum going!`}
+            action={{
+              label: "View Analytics",
+              onClick: () => navigate("/applications"),
+            }}
+          />
+        )}
+
+        {stats.total < 5 && stats.total > 0 && (
+          <Banner
+            variant="highlight"
+            title="💪 Great start!"
+            message="You're off to a good start. Add more applications to increase your chances of landing interviews!"
+            icon={<Target className="h-5 w-5" />}
+          />
+        )}
+
         {/* Welcome Header */}
-        <div className="mb-8 animate-fade-in">
+        <div className="animate-fade-in">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-1">
+              <h1 className="text-4xl font-bold text-foreground mb-2 tracking-tight font-display">
                 Good morning, {userName}! 👋
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-lg">
                 You're making great progress. Keep it up!
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2 hover:border-primary hover:text-primary transition-all">
                 <Sparkles className="h-4 w-4" />
                 AI Suggestions
               </Button>
               <AddJobDialog onJobAdded={() => refetch()}>
-                <Button className="gap-2 gradient-highlight border-0 shadow-glow text-highlight-foreground font-semibold">
+                <Button className="gap-2 gradient-highlight border-0 shadow-glow text-highlight-foreground font-semibold hover:scale-105 transition-transform">
                   <TrendingUp className="h-4 w-4" />
                   Add New Job
                 </Button>
@@ -101,21 +160,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Highlight Banner */}
-        <div className="mb-8 bg-highlight/10 border-2 border-highlight/30 rounded-2xl p-5 flex items-center gap-4 animate-fade-in">
-          <div className="h-12 w-12 rounded-xl bg-highlight/30 flex items-center justify-center animate-glow">
-            <Sparkles className="h-6 w-6 text-highlight-foreground" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-foreground">
-              <span className="highlight-text">Pro tip:</span> Add at least 5 applications this week to boost your chances!
-            </h3>
-            <p className="text-sm text-muted-foreground">You've added {stats.total} so far. Keep the momentum going!</p>
-          </div>
-        </div>
-
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard 
             title="Total Applications"
             value={stats.total}
@@ -147,35 +193,43 @@ export default function Dashboard() {
         <div className="grid lg:grid-cols-5 gap-6">
           {/* Chart - Takes 3 columns */}
           <div className="lg:col-span-3">
-            <WeeklyChart />
+            <WeeklyChart jobs={jobs} isLoading={isLoading} />
           </div>
 
           {/* Activity - Takes 2 columns */}
           <div className="lg:col-span-2">
-            <ActivityCard activities={recentActivities} />
+            <ActivityCard activities={recentActivities} isLoading={isLoading} />
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-8 bg-gradient-to-r from-primary via-primary to-indigo-600 rounded-2xl p-6 animate-fade-in relative overflow-hidden">
+        <div className="bg-gradient-to-r from-primary via-purple-500 to-pink-500 rounded-2xl p-6 animate-gradient relative overflow-hidden shadow-hover">
           {/* Grid pattern overlay */}
           <div className="absolute inset-0 bg-grid opacity-10" />
           
+          {/* Floating elements */}
+          <div className="absolute top-4 right-4 w-16 h-16 bg-white/10 rounded-full blur-xl animate-float" />
+          <div className="absolute bottom-4 left-4 w-20 h-20 bg-white/10 rounded-full blur-xl animate-float" style={{ animationDelay: "1s" }} />
+          
           <div className="relative flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="text-center md:text-left">
-              <h3 className="text-xl font-semibold text-primary-foreground mb-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium mb-2 backdrop-blur-sm">
+                <Zap className="h-3 w-3" />
+                Quick Action
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-1 font-display">
                 Ready to land your next role?
               </h3>
-              <p className="text-primary-foreground/80">
+              <p className="text-white/90">
                 Track more applications to increase your chances
               </p>
             </div>
             <div className="flex gap-3">
-              <Button variant="secondary" className="bg-white/20 text-white hover:bg-white/30 border-0">
+              <Button variant="secondary" className="bg-white/20 text-white hover:bg-white/30 border-0 backdrop-blur-sm">
                 Import from LinkedIn
               </Button>
               <AddJobDialog onJobAdded={() => refetch()}>
-                <Button className="bg-highlight text-highlight-foreground hover:bg-highlight/90 shadow-glow">
+                <Button className="bg-white text-primary hover:bg-white/90 shadow-lg font-semibold">
                   Add Application
                 </Button>
               </AddJobDialog>

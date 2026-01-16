@@ -1,4 +1,5 @@
 import { StatusBadge, StatusType } from "@/components/ui/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Activity {
   id: string;
@@ -11,6 +12,7 @@ interface Activity {
 
 interface ActivityCardProps {
   activities: Activity[];
+  isLoading?: boolean;
 }
 
 const companyColors: Record<string, string> = {
@@ -22,7 +24,30 @@ const companyColors: Record<string, string> = {
   Microsoft: "bg-gradient-to-br from-blue-400 to-cyan-500",
 };
 
-export function ActivityCard({ activities }: ActivityCardProps) {
+export function ActivityCard({ activities, isLoading = false }: ActivityCardProps) {
+  if (isLoading) {
+    return (
+      <div className="bg-card rounded-xl shadow-card p-6 animate-fade-in">
+        <div className="flex items-center justify-between mb-5">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-4 p-3">
+              <Skeleton className="h-11 w-11 rounded-xl" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-card rounded-xl shadow-card p-6 animate-fade-in">
       <div className="flex items-center justify-between mb-5">
