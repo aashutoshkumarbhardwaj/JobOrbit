@@ -27,6 +27,7 @@ const navItems = [
   { path: "/applications", label: "Applications", icon: List },
   { path: "/board", label: "Board", icon: Kanban },
   { path: "/calendar", label: "Calendar", icon: Calendar },
+  { path: "/notifications", label: "Notifications", icon: Bell },
 ];
 
 export function Navbar() {
@@ -94,12 +95,15 @@ export function Navbar() {
             />
           </div>
           
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-highlight text-[10px] font-bold text-highlight-foreground flex items-center justify-center">
-              3
-            </span>
-          </Button>
+          <Link to="/notifications">
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5 text-muted-foreground" />
+              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-highlight text-[10px] font-bold text-highlight-foreground flex items-center justify-center">
+                
+            *
+              </span>
+            </Button>
+          </Link>
           
           <AddJobDialog />
 

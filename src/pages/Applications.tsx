@@ -37,6 +37,7 @@ import {
   MapPin,
   DollarSign
 } from "lucide-react";
+import { LinkedInImportDialog } from "@/components/LinkedInImportDialog";
 
 interface Application {
   id: string;
@@ -64,6 +65,7 @@ const companyColors: Record<string, string> = {
 export default function Applications() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isImportDialogOpen, setImportDialogOpen] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -175,12 +177,18 @@ export default function Applications() {
                 Track and manage all your job applications
               </p>
             </div>
-            <AddJobDialog onJobAdded={() => refetch()}>
-              <Button className="gap-2 gradient-primary border-0 shadow-soft">
-                <Plus className="h-4 w-4" />
-                Add New Job
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="gap-2">
+                <Download className="h-4 w-4" />
+                Import from LinkedIn
               </Button>
-            </AddJobDialog>
+              <AddJobDialog onJobAdded={() => refetch()}>
+                <Button className="gap-2 gradient-primary border-0 shadow-soft">
+                  <Plus className="h-4 w-4" />
+                  Add New Job
+                </Button>
+              </AddJobDialog>
+            </div>
           </div>
         </div>
 
@@ -371,6 +379,7 @@ export default function Applications() {
           </div>
         )}
       </div>
+      <LinkedInImportDialog open={isImportDialogOpen} onOpenChange={setImportDialogOpen} />
     </Layout>
   );
 }

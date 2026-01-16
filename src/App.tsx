@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Applications from "./pages/Applications";
 import Board from "./pages/Board";
 import CalendarPage from "./pages/Calendar";
+import Notifications from "./pages/Notifications";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/applications" element={<Applications />} />
           <Route path="/board" element={<Board />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

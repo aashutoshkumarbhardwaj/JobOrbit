@@ -41,12 +41,6 @@ export function useAuth() {
     return { data, error };
   };
   
-  console.log({
-  url: import.meta.env.VITE_SUPABASE_URL?.slice(0, 30),
-  key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.slice(0, 10) + '...',
-  hasValues: !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)
-});
-
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -69,4 +63,5 @@ export function useAuth() {
     signIn,
     signOut,
   };
+  
 }
