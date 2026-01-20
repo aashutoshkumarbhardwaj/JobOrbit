@@ -7,7 +7,9 @@ const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+    if (typeof console !== 'undefined') {
+      console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+    }
   }, [location.pathname]);
 
   return (
@@ -36,7 +38,11 @@ const NotFound = () => {
           </Link>
           
           <Button
-            onClick={() => window.history.back()}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.history.back();
+              }
+            }}
             variant="outline"
             className="border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
             size="lg"

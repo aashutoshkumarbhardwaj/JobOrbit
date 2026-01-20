@@ -52,7 +52,9 @@ function getTimeBasedGreeting() {
     if (hour < 17) return "Good afternoon!";
     return "Good evening!";
   } catch (error) {
-    console.error('Error getting time:', error);
+    if (typeof console !== 'undefined') {
+      console.error('Error getting time:', error);
+    }
     return "Hello!";
   }
 }
@@ -164,12 +166,16 @@ export default function Dashboard() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
         if (error) {
-          console.error('Supabase error:', error);
+          if (typeof console !== 'undefined') {
+            console.error('Supabase error:', error);
+          }
           throw new Error('Failed to fetch job data');
         }
         return data || [];
       } catch (err) {
-        console.error('Query error:', err);
+        if (typeof console !== 'undefined') {
+          console.error('Query error:', err);
+        }
         setError('Failed to load your job data. Please try again.');
         return [];
       }
