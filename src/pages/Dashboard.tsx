@@ -278,7 +278,7 @@ export default function Dashboard() {
       id: job.id,
       company: job.company,
       role: job.role,
-      status: job.status as StatusType,
+      status: job.status as StatusType, // Safe cast since StatusBadge now handles invalid values
       timeAgo: new Date(job.created_at).toLocaleDateString(),
     }));
 

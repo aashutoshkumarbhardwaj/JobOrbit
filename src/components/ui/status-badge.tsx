@@ -9,7 +9,7 @@ export type StatusType =
   | "to-apply";
 
 interface StatusBadgeProps {
-  status: StatusType;
+  status: StatusType | string;
   className?: string;
 }
 
@@ -41,7 +41,27 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status as StatusType];
+  
+  // Log invalid status values for debugging (only in development)
+  if (process.env.NODE_ENV === 'development' && !config) {
+    console.warn('Invalid status value:', status, 'Expected one of:', Object.keys(statusConfig));
+  }
+  
+  // Fallback for invalid/unknown status
+  if (!config) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide",
+          "bg-muted text-muted-foreground",
+          className
+        )}
+      >
+        Unknown
+      </span>
+    );
+  }
   
   return (
     <span

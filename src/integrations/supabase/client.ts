@@ -14,6 +14,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
   }
 });
 
@@ -26,7 +28,7 @@ export async function getNotifications() {
   return { data, error };
 }
 
-export async function markNotificationAsRead(notificationId: number) {
+export async function markNotificationAsRead(notificationId: string) {
   const { data, error } = await supabase
     .from('notifications')
     .update({ is_read: true })

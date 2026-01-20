@@ -34,8 +34,8 @@ export default function Landing() {
   const { data: testimonials, isLoading: testimonialsLoading } = useTestimonials();
 
   useEffect(() => {
-    // Hero animation
-    if (heroRef.current) {
+    // Hero animation - with null guards
+    if (heroRef.current?.children) {
       gsap.from(heroRef.current.children, {
         y: 30,
         opacity: 0,
@@ -45,8 +45,8 @@ export default function Landing() {
       });
     }
 
-    // Stats animation on scroll
-    if (statsRef.current) {
+    // Stats animation on scroll - with null guards
+    if (statsRef.current?.children) {
       gsap.from(statsRef.current.children, {
         scrollTrigger: {
           trigger: statsRef.current,
@@ -60,20 +60,22 @@ export default function Landing() {
       });
     }
 
-    // Chart bars animation
+    // Chart bars animation - with null guards
     if (chartRef.current) {
       const bars = chartRef.current.querySelectorAll('.chart-bar');
-      gsap.from(bars, {
-        scrollTrigger: {
-          trigger: chartRef.current,
-          start: "top 80%",
-        },
-        scaleY: 0,
-        transformOrigin: "bottom",
-        duration: 0.8,
-        stagger: 0.1,
-        ease: "power2.out"
-      });
+      if (bars.length > 0) {
+        gsap.from(bars, {
+          scrollTrigger: {
+            trigger: chartRef.current,
+            start: "top 80%",
+          },
+          scaleY: 0,
+          transformOrigin: "bottom",
+          duration: 0.8,
+          stagger: 0.1,
+          ease: "power2.out"
+        });
+      }
     }
   }, []);
 
@@ -106,19 +108,19 @@ export default function Landing() {
             <ThemeToggle />
             
             {/* Enhanced GitHub Star Button */}
-            <a 
-              href="https://github.com/aashutoshkumarbhardwaj/JobOrbit" 
+            {/* <a 
+              href="" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 bg-background/60 hover:bg-background/80 backdrop-blur-xl border border-border/50 rounded-xl transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg dark:bg-background/40 dark:hover:bg-background/60"
             >
               <Github className="h-4 w-4 text-foreground" />
               <span className="text-xs font-medium text-foreground">Star</span>
-            </a>
+            </a> */}
             
             {/* Enhanced Product Hunt Button */}
             <a 
-              href="https://www.producthunt.com/posts/jobtracker" 
+              href="#" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 bg-orange-50/80 hover:bg-orange-100/80 dark:bg-orange-950/50 dark:hover:bg-orange-950/70 backdrop-blur-xl border border-orange-200/50 dark:border-orange-800/50 rounded-xl transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg"
