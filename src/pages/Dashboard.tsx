@@ -62,6 +62,8 @@ function useNetworkStatus() {
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
@@ -244,7 +246,7 @@ export default function Dashboard() {
       });
     }
     
-    if (insights.interviewRate > 0 && parseFloat(insights.interviewRate) < 20) {
+    if (Number(insights.interviewRate) > 0 && Number(insights.interviewRate) < 20) {
       recommendations.push({
         icon: <TrendingUp className="h-4 w-4" />,
         title: "Improve Interview Skills",

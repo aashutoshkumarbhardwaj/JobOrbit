@@ -32,7 +32,7 @@ export function useAuth() {
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : '',
         data: {
           full_name: fullName,
         },
