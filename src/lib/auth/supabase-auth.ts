@@ -289,29 +289,45 @@ export async function shareSessionWithExtension() {
       return
     }
 
-    window.chrome.runtime.sendMessage(
-      {
-        type: 'SESSION_UPDATE',
-        payload: {
-          session: {
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
-            expires_at: data.session.expires_at,
+    // Use promise with timeout to prevent hanging
+    return new Promise<void>((resolve) => {
+      const timeoutId = setTimeout(() => {
+        console.debug('Extension session sharing timed out')
+        resolve() // Don't throw - this is non-critical
+      }, 1000) // 1 second timeout
+
+      try {
+        window.chrome.runtime.sendMessage(
+          {
+            type: 'SESSION_UPDATE',
+            payload: {
+              session: {
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+                expires_at: data.session.expires_at,
+              },
+              user: {
+                id: data.session.user.id,
+                email: data.session.user.email,
+              },
+            },
           },
-          user: {
-            id: data.session.user.id,
-            email: data.session.user.email,
-          },
-        },
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.debug('Extension not available:', chrome.runtime.lastError)
-        } else if (response?.success) {
-          console.log('Session shared with extension')
-        }
+          (response) => {
+            clearTimeout(timeoutId)
+            if (chrome.runtime.lastError) {
+              console.debug('Extension not available:', chrome.runtime.lastError)
+            } else if (response?.success) {
+              console.log('Session shared with extension')
+            }
+            resolve()
+          }
+        )
+      } catch (error) {
+        clearTimeout(timeoutId)
+        console.debug('Could not send message to extension:', error)
+        resolve()
       }
-    )
+    })
   } catch (error) {
     console.debug('Could not share session with extension:', error)
   }
@@ -324,19 +340,35 @@ export async function shareSessionWithExtension() {
 export async function invalidateExtensionSession() {
   try {
     if (window.chrome?.runtime?.id) {
-      window.chrome.runtime.sendMessage(
-        {
-          type: 'SESSION_INVALIDATED',
-          payload: {},
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.debug('Extension not available:', chrome.runtime.lastError)
-          } else if (response?.success) {
-            console.log('Extension session invalidated')
-          }
+      // Use promise with timeout to prevent hanging
+      return new Promise<void>((resolve) => {
+        const timeoutId = setTimeout(() => {
+          console.debug('Extension invalidation timed out')
+          resolve() // Don't throw - this is non-critical
+        }, 1000) // 1 second timeout
+
+        try {
+          window.chrome.runtime.sendMessage(
+            {
+              type: 'SESSION_INVALIDATED',
+              payload: {},
+            },
+            (response) => {
+              clearTimeout(timeoutId)
+              if (chrome.runtime.lastError) {
+                console.debug('Extension not available:', chrome.runtime.lastError)
+              } else if (response?.success) {
+                console.log('Extension session invalidated')
+              }
+              resolve()
+            }
+          )
+        } catch (error) {
+          clearTimeout(timeoutId)
+          console.debug('Could not send invalidation to extension:', error)
+          resolve()
         }
-      )
+      })
     }
   } catch (error) {
     console.debug('Could not invalidate extension session:', error)

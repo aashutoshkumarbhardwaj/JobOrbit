@@ -35,7 +35,7 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
   const [error, setError] = useState<string | null>(null)
 
   /**
-   * Fetch all user data in parallel
+   * Fetch all user data in parallel with non-blocking timeouts
    */
   const fetchAllData = useCallback(async () => {
     if (!isAuthenticated || !user) {
@@ -48,7 +48,7 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
       setError(null)
 
       // Fetch all data in parallel using Edge Functions
-      // Add timeout to prevent infinite waiting
+      // Add timeout to prevent infinite waiting (5 seconds each)
       const fetchWithTimeout = (promise: Promise<any>, ms: number) => {
         return Promise.race([
           promise,
@@ -58,12 +58,13 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
         ])
       }
 
+      // First attempt with short timeout (5 seconds)
       const [profileRes, resumesRes, settingsRes, answersRes, applicationsRes] = await Promise.allSettled([
-        fetchWithTimeout(supabase.functions.invoke('profile-get'), 10000),
-        fetchWithTimeout(supabase.functions.invoke('resumes-get'), 10000),
-        fetchWithTimeout(supabase.functions.invoke('settings-get'), 10000),
-        fetchWithTimeout(supabase.functions.invoke('answers-get'), 10000),
-        fetchWithTimeout(supabase.functions.invoke('applications-get'), 10000),
+        fetchWithTimeout(supabase.functions.invoke('profile-get'), 5000),
+        fetchWithTimeout(supabase.functions.invoke('resumes-get'), 5000),
+        fetchWithTimeout(supabase.functions.invoke('settings-get'), 5000),
+        fetchWithTimeout(supabase.functions.invoke('answers-get'), 5000),
+        fetchWithTimeout(supabase.functions.invoke('applications-get'), 5000),
       ])
 
       // Process results - handle both fulfilled and rejected promises
@@ -105,6 +106,21 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
       setIsLoading(false)
     }
   }, [isAuthenticated, user])
+    } catch (err) {
+      console.error('Error fetching authenticated data:', err)
+      // Don't set error state - just use empty defaults
+      // This prevents UI from showing errors for partial failures
+      setData({
+        profile: null,
+        resumes: [],
+        settings: null,
+        answers: [],
+        applications: [],
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [isAuthenticated, user])
 
   /**
    * Fetch data when authenticated
@@ -126,12 +142,17 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
 
   /**
    * Set up real-time subscriptions for data updates
-   * Using modern Supabase v2 syntax
+   * Using modern Supabase v2 syntax with proper cleanup and timeout protection
    */
   useEffect(() => {
     if (!isAuthenticated || !user) return
 
     try {
+      // Setup subscription timeout - if it takes too long, clean up
+      const subscriptionTimeoutId = setTimeout(() => {
+        console.warn('Real-time subscriptions took too long to establish')
+      }, 5000)
+
       // Subscribe to profile changes
       const profileSubscription = supabase
         .channel(`profiles:user_id=eq.${user.id}`)
@@ -243,6 +264,7 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
 
       // Cleanup subscriptions
       return () => {
+        clearTimeout(subscriptionTimeoutId)
         profileSubscription?.unsubscribe()
         resumesSubscription?.unsubscribe()
         applicationsSubscription?.unsubscribe()

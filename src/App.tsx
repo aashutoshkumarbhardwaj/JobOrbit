@@ -7,6 +7,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { AuthenticatedDataProvider } from "@/context/AuthenticatedDataContext";
 import { ProtectedRoute } from "@/lib/auth/protected-route";
+
+console.log('📱 App.tsx: Starting imports...')
+
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Applications from "./pages/Applications";
@@ -22,6 +25,8 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import NotFound from "./pages/NotFound";
 
+console.log('📱 App.tsx: All imports complete')
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -36,41 +41,49 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <AuthenticatedDataProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/extension-auth" element={<ExtensionAuth />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/auth/reset-password" element={<ResetPassword />} />
-                
-                {/* Protected Routes */}
-                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
-                <Route path="/board" element={<ProtectedRoute><Board /></ProtectedRoute>} />
-                <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-                <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                
-                {/* 404 - ADD ALL CUSTOM ROUTES ABOVE THIS */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </AuthenticatedDataProvider>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+console.log('📱 App.tsx: Creating App component...')
+
+const App = () => {
+  console.log('📱 App.tsx: App component rendering')
+  
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            <AuthenticatedDataProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/extension-auth" element={<ExtensionAuth />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/auth/reset-password" element={<ResetPassword />} />
+                  
+                  {/* Protected Routes */}
+                  <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                  <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
+                  <Route path="/board" element={<ProtectedRoute><Board /></ProtectedRoute>} />
+                  <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+                  <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  
+                  {/* 404 - ADD ALL CUSTOM ROUTES ABOVE THIS */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </AuthenticatedDataProvider>
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  )
+}
+
+console.log('📱 App.tsx: Exporting App component')
 
 export default App;

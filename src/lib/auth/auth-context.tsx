@@ -36,27 +36,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  // Initialize auth state on mount
+  // Initialize auth state on mount (non-blocking)
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const currentSession = await supabaseAuth.getSession()
+        // Get session with timeout to prevent hanging
+        const sessionPromise = supabaseAuth.getSession()
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        )
+        
+        const currentSession = await Promise.race([sessionPromise, timeoutPromise])
         setSession(currentSession)
         setUser(currentSession?.user || null)
 
         // Setup API client with token refresh
         supabaseAuth.setupApiClientAuth(apiClient)
 
-        // If authenticated, share session with Chrome Extension
+        // Share session with extension non-blocking (don't await)
         if (currentSession) {
-          await supabaseAuth.shareSessionWithExtension()
+          supabaseAuth.shareSessionWithExtension().catch((err) => {
+            console.debug('Extension sharing failed (non-blocking):', err)
+          })
         }
 
-        // Initialize extension bridge to listen for extension messages
+        // Initialize extension bridge (non-blocking)
         initializeExtensionBridge()
       } catch (err) {
         console.error('Failed to initialize auth:', err)
         setError(err instanceof Error ? err : new Error('Auth initialization failed'))
+        // Still mark as not loading even if init fails - let app render
       } finally {
         setIsLoading(false)
       }
