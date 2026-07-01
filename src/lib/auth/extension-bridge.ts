@@ -256,16 +256,39 @@ export function notifyExtensionAppReady() {
 }
 
 /**
+ * Open extension auth page in new window
+ * Used by extension to initiate auth flow
+ */
+export function openExtensionAuthWindow() {
+  const width = 500
+  const height = 700
+  const left = window.screenX + (window.outerWidth - width) / 2
+  const top = window.screenY + (window.outerHeight - height) / 2
+
+  const authWindow = window.open(
+    `${window.location.origin}/extension-auth`,
+    'job-orbit-auth',
+    `width=${width},height=${height},left=${left},top=${top}`
+  )
+
+  if (!authWindow) {
+    console.error('Failed to open auth window. Pop-ups may be blocked.')
+  }
+
+  return authWindow
+}
+
+/**
  * Share session with extension
  */
 export async function shareSessionWithExtension() {
-  const { data } = await supabase.auth.getSession()
-
-  if (!data.session || !window.chrome?.runtime?.id) {
-    return
-  }
-
   try {
+    const { data } = await supabase.auth.getSession()
+
+    if (!data.session || !window.chrome?.runtime?.id) {
+      return
+    }
+
     window.chrome.runtime.sendMessage(
       {
         type: 'SESSION_UPDATE',

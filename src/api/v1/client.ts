@@ -374,7 +374,7 @@ const getApiBaseUrl = (): string => {
 
 export const apiClient = new APIClient({
   baseUrl: getApiBaseUrl(),
-  timeout: 30000,
+  timeout: 15000, // Reduced from 30s to 15s to prevent buffering on localhost
 })
 
 export default apiClient

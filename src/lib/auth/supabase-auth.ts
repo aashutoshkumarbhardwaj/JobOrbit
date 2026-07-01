@@ -230,7 +230,10 @@ export async function isAuthenticated(): Promise<boolean> {
 export function onAuthStateChange(
   callback: (state: AuthState) => void
 ): () => void {
-  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+  // Supabase v2 returns a subscription object directly
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, session) => {
     callback({
       user: session?.user || null,
       session: session || null,
@@ -241,7 +244,7 @@ export function onAuthStateChange(
 
   // Return unsubscribe function
   return () => {
-    data?.subscription.unsubscribe()
+    subscription?.unsubscribe()
   }
 }
 
@@ -272,4 +275,70 @@ export function setupApiClientAuth(apiClient: any) {
       return null
     }
   })
+}
+
+/**
+ * Share session with Chrome Extension
+ * Called when user logs in or auth state changes
+ */
+export async function shareSessionWithExtension() {
+  try {
+    const { data } = await supabase.auth.getSession()
+
+    if (!data.session || !window.chrome?.runtime?.id) {
+      return
+    }
+
+    window.chrome.runtime.sendMessage(
+      {
+        type: 'SESSION_UPDATE',
+        payload: {
+          session: {
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+            expires_at: data.session.expires_at,
+          },
+          user: {
+            id: data.session.user.id,
+            email: data.session.user.email,
+          },
+        },
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.debug('Extension not available:', chrome.runtime.lastError)
+        } else if (response?.success) {
+          console.log('Session shared with extension')
+        }
+      }
+    )
+  } catch (error) {
+    console.debug('Could not share session with extension:', error)
+  }
+}
+
+/**
+ * Invalidate session in Chrome Extension
+ * Called when user logs out
+ */
+export async function invalidateExtensionSession() {
+  try {
+    if (window.chrome?.runtime?.id) {
+      window.chrome.runtime.sendMessage(
+        {
+          type: 'SESSION_INVALIDATED',
+          payload: {},
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.debug('Extension not available:', chrome.runtime.lastError)
+          } else if (response?.success) {
+            console.log('Extension session invalidated')
+          }
+        }
+      )
+    }
+  } catch (error) {
+    console.debug('Could not invalidate extension session:', error)
+  }
 }
