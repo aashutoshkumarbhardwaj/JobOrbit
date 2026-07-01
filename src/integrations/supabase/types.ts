@@ -29,6 +29,10 @@ export type Database = {
           updated_at: string
           url: string | null
           user_id: string
+          source: string | null
+          job_description: string | null
+          requirements: string | null
+          extension_saved: boolean
         }
         Insert: {
           applied_date?: string | null
@@ -44,6 +48,10 @@ export type Database = {
           updated_at?: string
           url?: string | null
           user_id: string
+          source?: string | null
+          job_description?: string | null
+          requirements?: string | null
+          extension_saved?: boolean
         }
         Update: {
           applied_date?: string | null
@@ -59,6 +67,220 @@ export type Database = {
           updated_at?: string
           url?: string | null
           user_id?: string
+          source?: string | null
+          job_description?: string | null
+          requirements?: string | null
+          extension_saved?: boolean
+        }
+        Relationships: []
+      }
+      resumes: {
+        Row: {
+          id: string
+          user_id: string
+          filename: string
+          file_url: string
+          file_size: number
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          filename: string
+          file_url: string
+          file_size: number
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          filename?: string
+          file_url?: string
+          file_size?: number
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
+      ai_answers: {
+        Row: {
+          id: string
+          user_id: string
+          question: string
+          answer: string
+          category: string
+          is_favorite: boolean
+          created_at: string
+          updated_at: string
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          question: string
+          answer: string
+          category?: string
+          is_favorite?: boolean
+          created_at?: string
+          updated_at?: string
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          question?: string
+          answer?: string
+          category?: string
+          is_favorite?: boolean
+          created_at?: string
+          updated_at?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          id: string
+          user_id: string
+          theme: string
+          notifications_enabled: boolean
+          auto_sync_enabled: boolean
+          extension_enabled: boolean
+          oauth_providers: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          theme?: string
+          notifications_enabled?: boolean
+          auto_sync_enabled?: boolean
+          extension_enabled?: boolean
+          oauth_providers?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          theme?: string
+          notifications_enabled?: boolean
+          auto_sync_enabled?: boolean
+          extension_enabled?: boolean
+          oauth_providers?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_logs: {
+        Row: {
+          id: string
+          user_id: string
+          event_type: string
+          status: string
+          data: Json | null
+          error_message: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          event_type: string
+          status?: string
+          data?: Json | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          event_type?: string
+          status?: string
+          data?: Json | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      guest_data: {
+        Row: {
+          id: string
+          guest_id: string
+          data_type: string
+          data: Json
+          expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          guest_id: string
+          data_type: string
+          data: Json
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          guest_id?: string
+          data_type?: string
+          data?: Json
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string | null
+          avatar_url: string | null
+          email: string | null
+          phone: string | null
+          location: string | null
+          bio: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          full_name?: string | null
+          avatar_url?: string | null
+          email?: string | null
+          phone?: string | null
+          location?: string | null
+          bio?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string | null
+          avatar_url?: string | null
+          email?: string | null
+          phone?: string | null
+          location?: string | null
+          bio?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -126,33 +348,6 @@ export type Database = {
           rating?: number
           is_featured?: boolean
           display_order?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          id: string
-          user_id: string
-          full_name: string | null
-          avatar_url: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          full_name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          full_name?: string | null
-          avatar_url?: string | null
           created_at?: string
           updated_at?: string
         }
