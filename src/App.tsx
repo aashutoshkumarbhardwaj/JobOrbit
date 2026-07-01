@@ -20,7 +20,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ExtensionAuth from "./pages/ExtensionAuth";
-import AuthCallback from "./pages/auth/AuthCallback";
+import AuthCallback from "./pages/AuthCallback";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import NotFound from "./pages/NotFound";
