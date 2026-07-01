@@ -106,21 +106,6 @@ export function useAuthenticatedData(): useAuthenticatedDataState {
       setIsLoading(false)
     }
   }, [isAuthenticated, user])
-    } catch (err) {
-      console.error('Error fetching authenticated data:', err)
-      // Don't set error state - just use empty defaults
-      // This prevents UI from showing errors for partial failures
-      setData({
-        profile: null,
-        resumes: [],
-        settings: null,
-        answers: [],
-        applications: [],
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [isAuthenticated, user])
 
   /**
    * Fetch data when authenticated
