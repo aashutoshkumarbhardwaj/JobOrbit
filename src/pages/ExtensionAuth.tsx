@@ -112,8 +112,10 @@ export default function ExtensionAuth() {
    */
   const handleGoogleLogin = async () => {
     try {
+      // Set flag that this is extension auth
+      sessionStorage.setItem('isExtensionAuth', 'true')
       await signInWithGoogle()
-      // After successful login, auth state will update and trigger the useEffect above
+      // After successful login, auth state will update and trigger redirect to /auth/callback
     } catch (error) {
       console.error('Google login failed:', error)
       sendSessionToExtension({
@@ -128,8 +130,10 @@ export default function ExtensionAuth() {
    */
   const handleGithubLogin = async () => {
     try {
+      // Set flag that this is extension auth
+      sessionStorage.setItem('isExtensionAuth', 'true')
       await signInWithGitHub()
-      // After successful login, auth state will update and trigger the useEffect above
+      // After successful login, auth state will update and trigger redirect to /auth/callback
     } catch (error) {
       console.error('GitHub login failed:', error)
       sendSessionToExtension({
@@ -143,7 +147,8 @@ export default function ExtensionAuth() {
    * Handle email login - redirect to login page
    */
   const handleEmailLogin = () => {
-    navigate('/login?returnTo=/extension-auth')
+    sessionStorage.setItem('isExtensionAuth', 'true')
+    navigate('/login?returnTo=/extension-auth&isExtension=true')
   }
 
   // Still loading auth state

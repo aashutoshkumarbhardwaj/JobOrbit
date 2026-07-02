@@ -8,7 +8,8 @@
  * 3. User grants permission
  * 4. Supabase redirects back to /auth/callback
  * 5. This page handles the redirect
- * 6. Stores session and redirects to appropriate page
+ * 6. Stores session and creates extension session (if needed)
+ * 7. Returns extension token to extension or redirects to app
  */
 
 import { useEffect, useState } from 'react'
@@ -23,6 +24,14 @@ interface CallbackState {
   returnTo?: string
 }
 
+interface ExtensionSessionResponse {
+  success: boolean
+  extension_token?: string
+  extension_token_expires_in?: number
+  session_id?: string
+  error?: string
+}
+
 export default function AuthCallback() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -32,6 +41,105 @@ export default function AuthCallback() {
     message: 'Completing sign in...',
   })
 
+  /**
+   * Create extension session via edge function
+   */
+  const createExtensionSession = async (accessToken: string): Promise<ExtensionSessionResponse> => {
+    try {
+      console.log('🔌 Creating extension session...')
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/extension-session`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      if (!response.ok) {
+        console.error('❌ Extension session creation failed:', response.status)
+        return {
+          success: false,
+          error: `HTTP ${response.status}`,
+        }
+      }
+
+      const data = await response.json()
+      console.log('✅ Extension session created:', {
+        session_id: data.data?.session_id,
+        expires_in: data.data?.extension_token_expires_in,
+      })
+
+      return {
+        success: data.success,
+        extension_token: data.data?.extension_token,
+        extension_token_expires_in: data.data?.extension_token_expires_in,
+        session_id: data.data?.session_id,
+      }
+    } catch (error) {
+      console.error('❌ Error creating extension session:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Send extension session to extension via postMessage
+   */
+  const sendExtensionSessionToExtension = (extensionSession: ExtensionSessionResponse) => {
+    console.log('📤 Sending extension session to extension...')
+
+    // Send to extension background script
+    if (window.chrome?.runtime?.id) {
+      try {
+        window.chrome.runtime.sendMessage(
+          {
+            type: 'EXTENSION_SESSION_CREATED',
+            payload: {
+              extensionToken: extensionSession.extension_token,
+              sessionId: extensionSession.session_id,
+              expiresAt: Date.now() + (extensionSession.extension_token_expires_in || 3600) * 1000,
+            },
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.debug('Extension not available for session:', chrome.runtime.lastError)
+            } else if (response?.success) {
+              console.log('✅ Extension received session')
+            }
+          }
+        )
+      } catch (error) {
+        console.debug('Could not send to extension:', error)
+      }
+    }
+
+    // Also send to any opener window (if opened via window.open)
+    if (window.opener) {
+      try {
+        window.opener.postMessage(
+          {
+            type: 'EXTENSION_SESSION_CREATED',
+            payload: {
+              extensionToken: extensionSession.extension_token,
+              sessionId: extensionSession.session_id,
+              expiresAt: Date.now() + (extensionSession.extension_token_expires_in || 3600) * 1000,
+            },
+          },
+          '*'
+        )
+        console.log('✅ Extension opener received session')
+      } catch (error) {
+        console.debug('Could not send to opener:', error)
+      }
+    }
+  }
+
   useEffect(() => {
     const handleCallback = async () => {
       try {
@@ -39,7 +147,12 @@ export default function AuthCallback() {
 
         // Get return URL from search params or use default
         const returnTo = searchParams.get('returnTo') || '/dashboard'
+        const isExtensionFromParam = searchParams.get('isExtension') === 'true'
+        const isExtensionFromStorage = sessionStorage.getItem('isExtensionAuth') === 'true'
+        const isExtensionAuth = isExtensionFromParam || isExtensionFromStorage
+        
         console.log('📍 Will redirect to:', returnTo)
+        console.log('🔌 Extension auth request:', isExtensionAuth)
 
         // Wait a moment for auth context to process
         if (isLoading) {
@@ -80,11 +193,33 @@ export default function AuthCallback() {
           returnTo,
         })
 
-        // Check if this is an extension auth request
-        const isExtensionAuth = returnTo.includes('/extension-auth')
-        console.log('🔌 Extension auth request:', isExtensionAuth)
+        // If this is an extension auth request, create extension session
+        if (isExtensionAuth) {
+          console.log('🔌 Creating extension session for extension auth...')
+          const extensionSession = await createExtensionSession(session.access_token)
 
-        // Small delay for user to see success message
+          if (extensionSession.success && extensionSession.extension_token) {
+            // Send token to extension
+            sendExtensionSessionToExtension(extensionSession)
+
+            // Close window or redirect after short delay
+            setTimeout(() => {
+              console.log('🪟 Closing extension auth window')
+              window.close()
+            }, 500)
+            return
+          } else {
+            console.error('❌ Failed to create extension session:', extensionSession.error)
+            setState({
+              status: 'error',
+              message: 'Failed to create extension session. Please try again.',
+              returnTo,
+            })
+            return
+          }
+        }
+
+        // Regular web app login - redirect to dashboard
         setTimeout(() => {
           console.log('🚀 Redirecting to:', returnTo)
           navigate(returnTo, { replace: true })
