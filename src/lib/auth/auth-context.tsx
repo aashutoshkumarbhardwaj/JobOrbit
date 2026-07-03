@@ -53,6 +53,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Setup API client with token refresh
         supabaseAuth.setupApiClientAuth(apiClient)
 
+        // Setup API client session expired handler
+        apiClient.setSessionExpiredHandler(() => {
+          console.warn('⚠️  Session expired - redirecting to login')
+          setSession(null)
+          setUser(null)
+          // Redirect handled by protected routes, but we can navigate here if needed
+        })
+
         // Share session with extension non-blocking (don't await)
         if (currentSession) {
           supabaseAuth.shareSessionWithExtension().catch((err) => {

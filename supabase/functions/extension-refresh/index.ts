@@ -8,21 +8,19 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-}
+import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
 
 interface RefreshRequest {
   refresh_token: string
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const isExtensionRequest = true // This is always an extension request
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return handleCorsPreflight(origin, isExtensionRequest)
   }
 
   try {
@@ -30,16 +28,7 @@ serve(async (req) => {
 
     // Only allow POST
     if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Method not allowed. Use POST.',
-        }),
-        {
-          status: 405,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Method not allowed. Use POST.', origin, 405, isExtensionRequest)
     }
 
     // Parse request body
@@ -49,28 +38,10 @@ serve(async (req) => {
       refreshToken = body.refresh_token
 
       if (!refreshToken) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Missing refresh_token in request body',
-          }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          }
-        )
+        return createCorsErrorResponse('Missing refresh_token in request body', origin, 400, isExtensionRequest)
       }
     } catch (error) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Invalid JSON in request body',
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Invalid JSON in request body', origin, 400, isExtensionRequest)
     }
 
     console.log('🔐 Refreshing token...')
@@ -88,17 +59,7 @@ serve(async (req) => {
 
     if (error || !data.session) {
       console.error('❌ Refresh failed:', error?.message)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: error?.message || 'Failed to refresh session',
-          message: 'Refresh token may have expired. Please sign in again.',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse(error?.message || 'Failed to refresh session', origin, 401, isExtensionRequest)
     }
 
     console.log('✅ Token refreshed successfully')
@@ -116,16 +77,7 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error('❌ Failed to get user:', userError?.message)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to get user information',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Failed to get user information', origin, 500, isExtensionRequest)
     }
 
     // Return new session
@@ -152,29 +104,17 @@ serve(async (req) => {
 
     console.log('📤 Sending refreshed session')
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-        ...corsHeaders,
-      },
-    })
-  } catch (error) {
-    console.error('❌ Error:', error)
-
-    const errorMessage = error instanceof Error ? error.message : String(error)
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Internal server error',
-        message: errorMessage,
-      }),
+    return createCorsResponse(
+      JSON.stringify(response),
+      origin,
       {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 200,
+        contentType: 'application/json',
+        isExtensionRequest,
       }
     )
+  } catch (error) {
+    console.error('❌ Error:', error)
+    return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
   }
 })

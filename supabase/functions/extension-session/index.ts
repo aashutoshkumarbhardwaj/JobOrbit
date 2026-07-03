@@ -31,17 +31,15 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
 import { SignJWT } from 'https://esm.sh/jose@5.0.0'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-id, user-agent',
-}
+import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const isExtensionRequest = req.headers.has('x-extension-token')
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return handleCorsPreflight(origin, isExtensionRequest)
   }
 
   try {
@@ -50,16 +48,7 @@ serve(async (req) => {
 
     // Only allow GET requests for session creation
     if (req.method !== 'GET') {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Method not allowed. Use GET.',
-        }),
-        {
-          status: 405,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Method not allowed. Use GET.', origin, 405, isExtensionRequest)
     }
 
     // Get authorization header
@@ -68,34 +57,14 @@ serve(async (req) => {
 
     if (!authHeader) {
       console.warn('⚠️  Missing authorization header')
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Missing authorization header',
-          message: 'Please sign in to use the Chrome Extension',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Missing authorization header', origin, 401, isExtensionRequest)
     }
 
     // Extract token from Bearer scheme
     const token = authHeader.replace('Bearer ', '').trim()
     if (!token) {
       console.warn('⚠️  Invalid token format')
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Invalid authorization header format',
-          message: 'Expected: Authorization: Bearer <token>',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Invalid authorization header format', origin, 401, isExtensionRequest)
     }
 
     // Create Supabase clients
@@ -122,17 +91,7 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error('❌ Auth error:', userError?.message)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: userError?.message || 'Unauthorized',
-          message: 'User not authenticated or token expired',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse(userError?.message || 'Unauthorized', origin, 401, isExtensionRequest)
     }
 
     console.log('✅ User verified:', user.id)
@@ -147,17 +106,7 @@ serve(async (req) => {
 
     if (sessionError || !session) {
       console.error('❌ Session error:', sessionError?.message)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: sessionError?.message || 'Failed to get session',
-          message: 'Please sign in again',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse(sessionError?.message || 'Failed to get session', origin, 401, isExtensionRequest)
     }
 
     console.log('✅ Session obtained')
@@ -168,16 +117,7 @@ serve(async (req) => {
     const extensionTokenSecret = Deno.env.get('EXTENSION_TOKEN_SECRET')
     if (!extensionTokenSecret) {
       console.error('❌ EXTENSION_TOKEN_SECRET not configured')
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Server configuration error',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Server configuration error', origin, 500, isExtensionRequest)
     }
 
     const now = Math.floor(Date.now() / 1000)
@@ -264,44 +204,22 @@ serve(async (req) => {
 
       console.log('📤 Sending extension session response')
 
-      return new Response(JSON.stringify(response), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          ...corsHeaders,
-        },
-      })
-    } catch (tokenError) {
-      console.error('❌ Failed to create extension token:', tokenError)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to create extension token',
-          details: tokenError instanceof Error ? tokenError.message : String(tokenError),
-        }),
+      return createCorsResponse(
+        JSON.stringify(response),
+        origin,
         {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          status: 200,
+          contentType: 'application/json',
+          isExtensionRequest: true,
         }
       )
+    } catch (tokenError) {
+      console.error('❌ Failed to create extension token:', tokenError)
+      return createCorsErrorResponse('Failed to create extension token', origin, 500, isExtensionRequest)
     }
   } catch (error) {
     console.error('❌ Error:', error)
-
-    const errorMessage = error instanceof Error ? error.message : String(error)
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Internal server error',
-        message: errorMessage,
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    )
+    return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
   }
 })
 

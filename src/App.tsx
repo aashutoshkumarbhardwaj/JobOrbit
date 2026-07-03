@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { AuthenticatedDataProvider } from "@/context/AuthenticatedDataContext";
 import { ProtectedRoute } from "@/lib/auth/protected-route";
+import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
 
 console.log('📱 App.tsx: Starting imports...')
 
@@ -52,6 +53,7 @@ const App = () => {
         <TooltipProvider>
           <AuthProvider>
             <AuthenticatedDataProvider>
+              <SessionTimeoutWarning />
               <Toaster />
               <Sonner />
               <BrowserRouter>

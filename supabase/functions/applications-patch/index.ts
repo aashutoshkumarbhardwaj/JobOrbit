@@ -7,35 +7,27 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-}
+import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const isExtensionRequest = req.headers.has('x-extension-token')
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return handleCorsPreflight(origin, isExtensionRequest)
   }
 
   try {
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse('Missing authorization header', origin, 401, isExtensionRequest)
     }
 
     const url = new URL(req.url)
     const applicationId = url.pathname.split('/').pop()
 
     if (!applicationId) {
-      return new Response(
-        JSON.stringify({ error: 'Application ID is required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse('Application ID is required', origin, 400, isExtensionRequest)
     }
 
     const body = await req.json()
@@ -48,10 +40,7 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse('Unauthorized', origin, 401, isExtensionRequest)
     }
 
     const { data: application, error } = await supabase
@@ -67,13 +56,10 @@ serve(async (req) => {
 
     if (error) {
       console.error('Application update error:', error)
-      return new Response(
-        JSON.stringify({ error: error.message || 'Failed to update application' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse(error.message || 'Failed to update application', origin, 500, isExtensionRequest)
     }
 
-    return new Response(
+    return createCorsResponse(
       JSON.stringify({
         success: true,
         data: application,
@@ -82,16 +68,15 @@ serve(async (req) => {
           timestamp: new Date().toISOString(),
         },
       }),
-      { 
-        status: 200, 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      origin,
+      {
+        status: 200,
+        contentType: 'application/json',
+        isExtensionRequest,
       }
     )
   } catch (error) {
     console.error('Error:', error)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
   }
 })

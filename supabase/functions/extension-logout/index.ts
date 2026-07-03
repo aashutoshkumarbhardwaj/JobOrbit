@@ -15,21 +15,19 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
 import { jwtVerify } from 'https://esm.sh/jose@5.0.0'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token',
-}
+import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
 
 interface LogoutRequest {
   all_devices?: boolean
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const isExtensionRequest = true // This is always an extension request
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return handleCorsPreflight(origin, isExtensionRequest)
   }
 
   try {
@@ -37,16 +35,7 @@ serve(async (req) => {
 
     // Only allow POST
     if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Method not allowed. Use POST.',
-        }),
-        {
-          status: 405,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Method not allowed. Use POST.', origin, 405, isExtensionRequest)
     }
 
     // Get extension token from header
@@ -54,16 +43,7 @@ serve(async (req) => {
     console.log('🔐 Token present:', !!extensionToken)
 
     if (!extensionToken) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Missing X-Extension-Token header',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Missing X-Extension-Token header', origin, 401, isExtensionRequest)
     }
 
     // Parse request body
@@ -81,16 +61,7 @@ serve(async (req) => {
     const extensionTokenSecret = Deno.env.get('EXTENSION_TOKEN_SECRET')
     if (!extensionTokenSecret) {
       console.error('❌ EXTENSION_TOKEN_SECRET not configured')
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Server configuration error',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Server configuration error', origin, 500, isExtensionRequest)
     }
 
     let tokenPayload: any
@@ -100,29 +71,11 @@ serve(async (req) => {
       tokenPayload = verified.payload
 
       if (tokenPayload.aud !== 'extension') {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Invalid token audience',
-          }),
-          {
-            status: 401,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          }
-        )
+        return createCorsErrorResponse('Invalid token audience', origin, 401, isExtensionRequest)
       }
     } catch (error) {
       console.error('Token verification failed:', error)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Invalid or expired token',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      )
+      return createCorsErrorResponse('Invalid or expired token', origin, 401, isExtensionRequest)
     }
 
     const sessionId = tokenPayload.sessionId
@@ -156,21 +109,12 @@ serve(async (req) => {
 
       if (revokeError) {
         console.error('Failed to revoke sessions:', revokeError)
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Failed to revoke sessions',
-          }),
-          {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          }
-        )
+        return createCorsErrorResponse('Failed to revoke sessions', origin, 500, isExtensionRequest)
       }
 
       console.log('✅ All sessions revoked')
 
-      return new Response(
+      return createCorsResponse(
         JSON.stringify({
           success: true,
           message: 'Logged out from all devices',
@@ -178,13 +122,11 @@ serve(async (req) => {
             revoked_all: true,
           },
         }),
+        origin,
         {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-            ...corsHeaders,
-          },
+          contentType: 'application/json',
+          isExtensionRequest,
         }
       )
     } else {
@@ -204,21 +146,12 @@ serve(async (req) => {
 
       if (revokeError) {
         console.error('Failed to revoke session:', revokeError)
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Failed to revoke session',
-          }),
-          {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          }
-        )
+        return createCorsErrorResponse('Failed to revoke session', origin, 500, isExtensionRequest)
       }
 
       console.log('✅ Session revoked')
 
-      return new Response(
+      return createCorsResponse(
         JSON.stringify({
           success: true,
           message: 'Logged out successfully',
@@ -227,31 +160,16 @@ serve(async (req) => {
             revoked: true,
           },
         }),
+        origin,
         {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-            ...corsHeaders,
-          },
+          contentType: 'application/json',
+          isExtensionRequest,
         }
       )
     }
   } catch (error) {
     console.error('❌ Error:', error)
-
-    const errorMessage = error instanceof Error ? error.message : String(error)
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Internal server error',
-        message: errorMessage,
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    )
+    return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
   }
 })

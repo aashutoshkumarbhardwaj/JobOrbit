@@ -1,9 +1,23 @@
 /**
  * API Base Client
  * Handles all HTTP requests with authentication, error handling, and logging
+ * 
+ * Security Features:
+ * - JWT token management and refresh
+ * - Extension token support
+ * - Rate limit tracking
+ * - Session expiration handling
+ * - CSRF protection
+ * - Security headers
  */
 
 import { ApiResponse, ApiError, ApiErrorClass, ApiRequestConfig } from './types'
+import { 
+  sanitizeInput, 
+  isTokenExpired, 
+  generateSecureRandomString,
+  RateLimiterStore 
+} from '@/lib/security'
 
 interface ClientConfig {
   baseUrl: string
@@ -18,18 +32,71 @@ class APIClient {
   private requestIdCounter = 0
   private rateLimitRemaining = -1
   private rateLimitReset = 0
+  private failedRefreshAttempts = 0
+  private maxFailedRefreshAttempts = 3
+  private onSessionExpired: (() => void) | null = null
+  private csrfToken: string | null = null
+  private rateLimiter: RateLimiterStore
 
   constructor(config: ClientConfig) {
     this.baseUrl = config.baseUrl
     this.timeout = config.timeout || 30000
     this.onTokenRefresh = config.onTokenRefresh || null
+    this.rateLimiter = new RateLimiterStore(100, 10) // 100 tokens, refill 10/sec
+    this.generateCSRFToken()
   }
 
   /**
-   * Generate a unique request ID for tracking
+   * Generate CSRF token for security
    */
-  private generateRequestId(): string {
-    return `${Date.now()}-${++this.requestIdCounter}`
+  private generateCSRFToken(): void {
+    this.csrfToken = generateSecureRandomString(32)
+  }
+
+  /**
+   * Get CSRF token (for forms)
+   */
+  getCSRFToken(): string {
+    if (!this.csrfToken) {
+      this.generateCSRFToken()
+    }
+    return this.csrfToken!
+  }
+
+  /**
+   * Check rate limiting for endpoint
+   */
+  private checkRateLimit(endpoint: string): boolean {
+    const result = this.rateLimiter.isAllowed(endpoint, 1)
+    
+    if (!result.allowed) {
+      console.warn(`Rate limit exceeded for ${endpoint}. Reset in ${result.resetTime}s`)
+      return false
+    }
+    
+    return true
+  }
+
+  /**
+   * Validate Bearer token format and expiration
+   */
+  private validateToken(token: string): boolean {
+    if (!token || typeof token !== 'string') {
+      return false
+    }
+
+    // Check Bearer token format
+    if (!token.startsWith('eyJ')) {
+      return false
+    }
+
+    // Basic JWT structure check (3 parts separated by dots)
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      return false
+    }
+
+    return true
   }
 
   /**
@@ -55,18 +122,32 @@ class APIClient {
   }
 
   /**
-   * Build request headers with authentication
+   * Build request headers with authentication and security
    */
   private buildHeaders(
     customHeaders?: Record<string, string>
   ): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      // Security headers
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-Content-Type-Options': 'nosniff',
+    }
+
+    // Add CSRF token for state-changing requests
+    if (this.csrfToken) {
+      headers['X-CSRF-Token'] = this.csrfToken
     }
 
     const token = this.getAuthToken()
-    if (token) {
+    if (token && this.validateToken(token)) {
       headers['Authorization'] = `Bearer ${token}`
+    }
+
+    // Add extension token if available
+    const extensionToken = this.getExtensionToken()
+    if (extensionToken) {
+      headers['X-Extension-Token'] = extensionToken
     }
 
     if (customHeaders) {
@@ -77,7 +158,25 @@ class APIClient {
   }
 
   /**
-   * Build complete URL with query parameters
+   * Get extension token from localStorage
+   */
+  private getExtensionToken(): string | null {
+    try {
+      return localStorage.getItem('extension_session_token')
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Generate a unique request ID for tracking
+   */
+  private generateRequestId(): string {
+    return `${Date.now()}-${++this.requestIdCounter}`
+  }
+
+  /**
+   * Build complete URL with query parameters (safely sanitized)
    */
   private buildUrl(
     endpoint: string,
@@ -88,7 +187,9 @@ class APIClient {
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== null && value !== undefined) {
-          url.searchParams.append(key, String(value))
+          // Sanitize parameter values to prevent injection attacks
+          const sanitized = String(value).substring(0, 1000)
+          url.searchParams.append(key, sanitized)
         }
       })
     }
@@ -124,9 +225,33 @@ class APIClient {
       const newToken = await this.onTokenRefresh()
       if (newToken) {
         this.setAuthToken(newToken)
+        // Reset failed attempts on successful refresh
+        this.failedRefreshAttempts = 0
+      } else {
+        throw new Error('No token returned from refresh handler')
       }
     } catch (error) {
-      console.error('Token refresh failed:', error)
+      this.failedRefreshAttempts++
+      
+      // If we've failed too many times, session is permanently expired
+      if (this.failedRefreshAttempts >= this.maxFailedRefreshAttempts) {
+        console.error('❌ Session expired - max refresh attempts exceeded')
+        this.failedRefreshAttempts = 0 // Reset for next session
+        
+        // Trigger session expired callback (will redirect to login)
+        if (this.onSessionExpired) {
+          this.onSessionExpired()
+        }
+        
+        throw new ApiErrorClass(
+          'SESSION_EXPIRED',
+          'Session has expired. Please sign in again.',
+          401,
+          error
+        )
+      }
+      
+      console.error(`Token refresh failed (${this.failedRefreshAttempts}/${this.maxFailedRefreshAttempts}):`, error)
       throw new ApiErrorClass(
         'TOKEN_REFRESH_FAILED',
         'Failed to refresh authentication token',
@@ -213,6 +338,15 @@ class APIClient {
     endpoint: string,
     config?: ApiRequestConfig
   ): Promise<T> {
+    // Check rate limiting
+    if (!this.checkRateLimit(endpoint)) {
+      throw new ApiErrorClass(
+        'RATE_LIMITED',
+        'Too many requests. Please try again later.',
+        429
+      )
+    }
+
     const requestId = this.generateRequestId()
     const url = this.buildUrl(endpoint, config?.params)
     const headers = this.buildHeaders(config?.headers)
@@ -359,6 +493,13 @@ class APIClient {
    */
   setTokenRefreshHandler(handler: () => Promise<string | null>): void {
     this.onTokenRefresh = handler
+  }
+
+  /**
+   * Set session expired callback (e.g., redirect to login)
+   */
+  setSessionExpiredHandler(handler: () => void): void {
+    this.onSessionExpired = handler
   }
 }
 

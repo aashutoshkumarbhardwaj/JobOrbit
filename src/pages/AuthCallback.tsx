@@ -89,6 +89,147 @@ export default function AuthCallback() {
   }
 
   /**
+   * Return extension auth success as JSON response
+   * This is called instead of navigating/redirecting
+   */
+  const returnExtensionAuthSuccess = (data: {
+    extension_token: string
+    session_id?: string
+    expires_in?: number
+    user?: {
+      id?: string
+      email?: string
+    }
+  }) => {
+    console.log('✅ Extension auth success - returning JSON response')
+
+    // Calculate expires_at timestamp
+    const expiresAt = Math.floor(Date.now() / 1000) + (data.expires_in || 3600)
+
+    // Build response
+    const response = {
+      success: true,
+      extensionToken: data.extension_token,
+      sessionId: data.session_id,
+      expiresAt: expiresAt,
+      user: {
+        id: data.user?.id,
+        email: data.user?.email,
+      },
+    }
+
+    console.log('📤 Sending extension session to extension...')
+
+    // Send to extension background script via chrome.runtime.sendMessage
+    if (window.chrome?.runtime?.id) {
+      try {
+        window.chrome.runtime.sendMessage(
+          {
+            type: 'EXTENSION_AUTH_SUCCESS',
+            payload: response,
+          },
+          (extensionResponse) => {
+            if (chrome.runtime.lastError) {
+              console.debug('Extension not available:', chrome.runtime.lastError.message)
+            } else if (extensionResponse?.success) {
+              console.log('✅ Extension received session token')
+            }
+          }
+        )
+      } catch (error) {
+        console.debug('Could not send to extension runtime:', error)
+      }
+    }
+
+    // Fallback: Send to opener window (if opened via window.open)
+    if (window.opener) {
+      try {
+        window.opener.postMessage(
+          {
+            type: 'EXTENSION_AUTH_SUCCESS',
+            payload: response,
+          },
+          '*'
+        )
+        console.log('✅ Sent session to opener window')
+      } catch (error) {
+        console.debug('Could not send to opener:', error)
+      }
+    }
+
+    // Store in window object for direct access
+    (window as any).__EXTENSION_AUTH_RESPONSE = response
+    console.log('💾 Stored response in window.__EXTENSION_AUTH_RESPONSE')
+
+    // Show success page (optional - extension will close this window)
+    setState({
+      status: 'success',
+      message: 'Connected to extension!',
+    })
+  }
+
+  /**
+   * Return extension auth error as JSON response
+   * This is called instead of navigating/redirecting
+   */
+  const returnExtensionAuthError = (errorMessage: string) => {
+    console.error('❌ Extension auth error - returning error response:', errorMessage)
+
+    const response = {
+      success: false,
+      error: errorMessage,
+      extensionToken: null,
+    }
+
+    console.log('📤 Sending error to extension...')
+
+    // Send to extension background script via chrome.runtime.sendMessage
+    if (window.chrome?.runtime?.id) {
+      try {
+        window.chrome.runtime.sendMessage(
+          {
+            type: 'EXTENSION_AUTH_ERROR',
+            payload: response,
+          },
+          (extensionResponse) => {
+            if (chrome.runtime.lastError) {
+              console.debug('Extension not available:', chrome.runtime.lastError.message)
+            }
+          }
+        )
+      } catch (error) {
+        console.debug('Could not send to extension runtime:', error)
+      }
+    }
+
+    // Fallback: Send to opener window
+    if (window.opener) {
+      try {
+        window.opener.postMessage(
+          {
+            type: 'EXTENSION_AUTH_ERROR',
+            payload: response,
+          },
+          '*'
+        )
+        console.log('✅ Sent error to opener window')
+      } catch (error) {
+        console.debug('Could not send to opener:', error)
+      }
+    }
+
+    // Store in window object for direct access
+    (window as any).__EXTENSION_AUTH_RESPONSE = response
+    console.log('💾 Stored error in window.__EXTENSION_AUTH_RESPONSE')
+
+    // Show error page
+    setState({
+      status: 'error',
+      message: errorMessage,
+    })
+  }
+
+  /**
    * Send extension session to extension via postMessage
    */
   const sendExtensionSessionToExtension = (extensionSession: ExtensionSessionResponse) => {
@@ -163,6 +304,10 @@ export default function AuthCallback() {
         // Check for auth error
         if (authError) {
           console.error('❌ Auth error:', authError)
+          if (isExtensionAuth) {
+            returnExtensionAuthError(authError)
+            return
+          }
           setState({
             status: 'error',
             message: authError,
@@ -174,6 +319,10 @@ export default function AuthCallback() {
         // Check if we have a session
         if (!session) {
           console.warn('⚠️  No session after callback')
+          if (isExtensionAuth) {
+            returnExtensionAuthError('Failed to establish session')
+            return
+          }
           setState({
             status: 'error',
             message: 'Failed to establish session. Please try again.',
@@ -187,45 +336,57 @@ export default function AuthCallback() {
         console.log('👤 User:', session.user?.email)
         console.log('⏱️  Expires at:', new Date(session.expires_at * 1000).toISOString())
 
+        // If this is an extension auth request, return token immediately
+        if (isExtensionAuth) {
+          console.log('🔌 Extension auth detected - returning token as JSON')
+          
+          try {
+            const extensionSession = await createExtensionSession(session.access_token)
+
+            if (extensionSession.success && extensionSession.extension_token) {
+              console.log('✅ Extension session created')
+              console.log('📤 Returning extension token to caller')
+              
+              // Return as JSON response instead of redirecting
+              returnExtensionAuthSuccess({
+                extension_token: extensionSession.extension_token,
+                session_id: extensionSession.session_id,
+                expires_in: extensionSession.extension_token_expires_in,
+                user: {
+                  id: session.user?.id,
+                  email: session.user?.email,
+                },
+              })
+              return
+            } else {
+              console.error('❌ Failed to create extension session:', extensionSession.error)
+              returnExtensionAuthError(extensionSession.error || 'Failed to create extension session')
+              return
+            }
+          } catch (err) {
+            console.error('❌ Error creating extension session:', err)
+            returnExtensionAuthError(err instanceof Error ? err.message : 'Unknown error')
+            return
+          }
+        }
+
+        // Regular web app login - show success and redirect to dashboard
         setState({
           status: 'success',
           message: `Welcome back, ${session.user?.email}!`,
           returnTo,
         })
 
-        // If this is an extension auth request, create extension session
-        if (isExtensionAuth) {
-          console.log('🔌 Creating extension session for extension auth...')
-          const extensionSession = await createExtensionSession(session.access_token)
-
-          if (extensionSession.success && extensionSession.extension_token) {
-            // Send token to extension
-            sendExtensionSessionToExtension(extensionSession)
-
-            // Close window or redirect after short delay
-            setTimeout(() => {
-              console.log('🪟 Closing extension auth window')
-              window.close()
-            }, 500)
-            return
-          } else {
-            console.error('❌ Failed to create extension session:', extensionSession.error)
-            setState({
-              status: 'error',
-              message: 'Failed to create extension session. Please try again.',
-              returnTo,
-            })
-            return
-          }
-        }
-
-        // Regular web app login - redirect to dashboard
         setTimeout(() => {
           console.log('🚀 Redirecting to:', returnTo)
           navigate(returnTo, { replace: true })
         }, 1000)
       } catch (err) {
         console.error('❌ Callback handler error:', err)
+        if (searchParams.get('isExtension') === 'true') {
+          returnExtensionAuthError(err instanceof Error ? err.message : 'Unknown error')
+          return
+        }
         setState({
           status: 'error',
           message:

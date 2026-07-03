@@ -7,27 +7,22 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-}
+import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
 
 serve(async (req) => {
-  // Handle CORS
+  const origin = req.headers.get('origin')
+  const isExtensionRequest = req.headers.has('x-extension-token')
+
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return handleCorsPreflight(origin, isExtensionRequest)
   }
 
   try {
     // Get authorization header
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse('Missing authorization header', origin, 401, isExtensionRequest)
     }
 
     // Create Supabase client with user token
@@ -42,10 +37,7 @@ serve(async (req) => {
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse('Unauthorized', origin, 401, isExtensionRequest)
     }
 
     // Fetch profile (RLS will automatically filter to user_id)
@@ -57,13 +49,10 @@ serve(async (req) => {
 
     if (error) {
       console.error('Profile fetch error:', error)
-      return new Response(
-        JSON.stringify({ error: error.message || 'Failed to fetch profile' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      )
+      return createCorsErrorResponse(error.message || 'Failed to fetch profile', origin, 500, isExtensionRequest)
     }
 
-    return new Response(
+    return createCorsResponse(
       JSON.stringify({
         success: true,
         data: profile,
@@ -72,16 +61,15 @@ serve(async (req) => {
           timestamp: new Date().toISOString(),
         },
       }),
-      { 
-        status: 200, 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      origin,
+      {
+        status: 200,
+        contentType: 'application/json',
+        isExtensionRequest,
       }
     )
   } catch (error) {
     console.error('Error:', error)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
   }
 })
