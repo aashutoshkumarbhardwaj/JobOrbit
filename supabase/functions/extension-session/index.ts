@@ -32,6 +32,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
 import { SignJWT } from 'https://esm.sh/jose@5.0.0'
 import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
+import { hashToken, extractBrowserInfo, extractOSInfo } from '../_shared/extension-token.ts'
 
 serve(async (req) => {
   const origin = req.headers.get('origin')
@@ -222,38 +223,3 @@ serve(async (req) => {
     return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
   }
 })
-
-/**
- * Hash token using SHA256 (compatible with edge function runtime)
- */
-async function hashToken(token: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(token)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  return hashHex
-}
-
-/**
- * Extract browser info from user agent
- */
-function extractBrowserInfo(userAgent: string): string {
-  if (userAgent.includes('Chrome')) return 'Chrome'
-  if (userAgent.includes('Safari')) return 'Safari'
-  if (userAgent.includes('Firefox')) return 'Firefox'
-  if (userAgent.includes('Edge')) return 'Edge'
-  return 'Unknown'
-}
-
-/**
- * Extract OS info from user agent
- */
-function extractOSInfo(userAgent: string): string {
-  if (userAgent.includes('Windows')) return 'Windows'
-  if (userAgent.includes('Mac')) return 'macOS'
-  if (userAgent.includes('Linux')) return 'Linux'
-  if (userAgent.includes('iPhone')) return 'iOS'
-  if (userAgent.includes('Android')) return 'Android'
-  return 'Unknown'
-}

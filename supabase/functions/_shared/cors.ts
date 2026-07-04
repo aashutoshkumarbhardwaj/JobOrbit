@@ -5,12 +5,20 @@
  */
 
 /**
+ * Allowed origins for web requests
+ */
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://job-orbit-flax.vercel.app",
+];
+
+/**
  * CORS headers for web requests
+ * Includes all headers that Supabase clients typically send
  */
 export const webCorsHeaders = {
-  'Access-Control-Allow-Origin': process.env.VITE_APP_URL || 'http://localhost:5173',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token',
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-extension-token',
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Max-Age': '3600',
 }
@@ -18,11 +26,12 @@ export const webCorsHeaders = {
 /**
  * CORS headers for extension requests
  * Extensions can use '*' for origin but we restrict by extension ID
+ * Includes all headers that Supabase clients typically send
  */
 export const extensionCorsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token, x-extension-id',
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-extension-token, x-extension-id',
   'Access-Control-Max-Age': '3600',
 }
 
