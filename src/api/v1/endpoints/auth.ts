@@ -1,10 +1,10 @@
 /**
  * Authentication API Endpoints
- * Wrapper around Supabase Auth for consistency
+ * Wrapper around AuthManager for consistency
  * This layer can be used for backend API calls if needed
  */
 
-import * as supabaseAuth from '@/lib/auth/supabase-auth'
+import { authManager } from '@/lib/auth/AuthManager'
 
 export interface SessionResponse {
   access_token: string
@@ -26,10 +26,10 @@ export interface RefreshTokenPayload {
 
 /**
  * Get current session
- * Uses Supabase auth directly
+ * Uses AuthManager directly
  */
 export async function getSession(): Promise<SessionResponse | null> {
-  const session = await supabaseAuth.getSession()
+  const session = authManager.getCurrentSession()
   if (!session) return null
 
   return {
@@ -43,18 +43,18 @@ export async function getSession(): Promise<SessionResponse | null> {
 
 /**
  * Logout current session
- * Uses Supabase auth directly
+ * Uses AuthManager directly
  */
 export async function logout(): Promise<void> {
-  await supabaseAuth.signOut()
+  await authManager.signOut()
 }
 
 /**
  * Refresh authentication token
- * Uses Supabase auth directly
+ * Uses AuthManager directly
  */
 export async function refreshToken(): Promise<SessionResponse | null> {
-  const session = await supabaseAuth.refreshToken()
+  const session = await authManager.refreshSession()
   if (!session) return null
 
   return {
@@ -73,13 +73,20 @@ export async function signInWithEmail(
   email: string,
   password: string
 ): Promise<SessionResponse> {
-  const data = await supabaseAuth.signInWithEmail({ email, password })
+  await authManager.signInWithEmail({ email, password })
+  const session = authManager.getCurrentSession()
+  const user = authManager.getCurrentUser()
+  
+  if (!session || !user) {
+    throw new Error('Failed to get session after sign in')
+  }
+
   return {
-    access_token: data.session!.access_token,
-    refresh_token: data.session!.refresh_token,
-    expires_in: data.session!.expires_in || 3600,
-    user_id: data.user!.id,
-    email: data.user!.email || '',
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_in: session.expires_in || 3600,
+    user_id: user.id,
+    email: user.email || '',
   }
 }
 
@@ -91,32 +98,34 @@ export async function signUpWithEmail(
   password: string,
   fullName?: string
 ): Promise<SessionResponse | null> {
-  const data = await supabaseAuth.signUpWithEmail({ email, password, fullName })
+  await authManager.signUpWithEmail({ email, password, fullName })
+  const session = authManager.getCurrentSession()
+  const user = authManager.getCurrentUser()
   
-  if (!data.session) return null
+  if (!session || !user) return null
 
   return {
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-    expires_in: data.session.expires_in || 3600,
-    user_id: data.user!.id,
-    email: data.user!.email || '',
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_in: session.expires_in || 3600,
+    user_id: user.id,
+    email: user.email || '',
   }
 }
 
 /**
  * Validate session token
- * Uses Supabase auth directly
+ * Uses AuthManager directly
  */
 export async function validateSession(): Promise<{ valid: boolean }> {
-  const isValid = await supabaseAuth.isAuthenticated()
+  const isValid = await authManager.validateSession()
   return { valid: isValid }
 }
 
 /**
  * Revoke all sessions (logout all devices)
- * Uses Supabase auth directly
+ * Uses AuthManager directly
  */
 export async function revokeAllSessions(): Promise<void> {
-  await supabaseAuth.signOutAllDevices()
+  await authManager.signOutAllDevices()
 }

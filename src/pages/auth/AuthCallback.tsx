@@ -7,7 +7,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import * as supabaseAuth from '@/lib/auth/supabase-auth'
+import { authManager } from '@/lib/auth/AuthManager'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -16,7 +16,7 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       try {
         // Check if session was established
-        const session = await supabaseAuth.getSession()
+        const session = authManager.getCurrentSession()
         
         if (session) {
           // OAuth successful, redirect to dashboard

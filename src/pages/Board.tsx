@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { AddJobDialog } from "@/components/AddJobDialog";
 import { EditJobDialog } from "@/components/EditJobDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import {

@@ -10,7 +10,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/auth-context'
-import * as supabaseAuth from '@/lib/auth/supabase-auth'
+import { authManager } from '@/lib/auth/AuthManager'
 
 export interface SessionTimeoutState {
   timeUntilExpiry: number | null // seconds until expiration
@@ -30,7 +30,7 @@ export function useSessionTimeout(): SessionTimeoutState {
   const extendSession = useCallback(async () => {
     try {
       console.log('🔄 Extending session...')
-      await supabaseAuth.refreshToken()
+      await authManager.refreshSession()
       console.log('✅ Session extended')
       setShowWarning(false)
     } catch (error) {

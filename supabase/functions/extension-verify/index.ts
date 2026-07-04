@@ -1,15 +1,15 @@
 /**
- * Extension Logout Endpoint
- * POST /functions/v1/extension-logout
+ * Extension Token Verification Endpoint
+ * GET /functions/v1/extension-verify
  * 
- * Revokes extension session and cleans up database records
+ * Verifies that an extension token is still valid
+ * Used by extension to check authentication status
  * 
  * Flow:
- * 1. Verify extension token is valid
- * 2. Mark extension session as revoked in database
- * 3. Return success confirmation
- * 
- * This ensures proper cleanup when user logs out from extension
+ * 1. Extract extension token from X-Extension-Token header
+ * 2. Verify JWT signature and expiration
+ * 3. Check session is active in database
+ * 4. Return verification status
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -27,12 +27,12 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚪 Extension logout request received')
+    console.log('🔐 Extension token verification request received')
     console.log(`📍 Method: ${req.method}`)
 
-    // Only allow POST requests
-    if (req.method !== 'POST') {
-      return createCorsErrorResponse('Method not allowed. Use POST.', origin, 405, isExtensionRequest)
+    // Only allow GET requests
+    if (req.method !== 'GET') {
+      return createCorsErrorResponse('Method not allowed. Use GET.', origin, 405, isExtensionRequest)
     }
 
     // Get extension token from header
@@ -70,36 +70,52 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     )
 
-    console.log('📝 Revoking extension session in database...')
+    console.log('📝 Checking session status in database...')
 
-    // Mark session as revoked
-    const { error: revokeError } = await supabaseService
+    // Check if session is still active
+    const { data: session, error: sessionError } = await supabaseService
       .from('extension_sessions')
-      .update({
-        is_revoked: true,
-        revoked_at: new Date().toISOString(),
-        metadata: {
-          revoked_reason: 'user_logout',
-          revoked_by: 'extension',
-        }
-      })
+      .select('id, user_id, is_revoked, expires_at')
       .eq('id', tokenPayload.sessionId)
       .eq('user_id', tokenPayload.userId) // Extra security check
+      .single()
 
-    if (revokeError) {
-      console.error('❌ Failed to revoke session:', revokeError.message)
-      return createCorsErrorResponse('Failed to revoke session', origin, 500, isExtensionRequest)
+    if (sessionError || !session) {
+      console.error('❌ Session not found:', sessionError?.message)
+      return createCorsErrorResponse('Session not found', origin, 401, isExtensionRequest)
     }
 
-    console.log('✅ Extension session revoked successfully')
+    // Check if session is revoked
+    if (session.is_revoked) {
+      console.warn('⚠️  Session has been revoked')
+      return createCorsErrorResponse('Session revoked', origin, 401, isExtensionRequest)
+    }
+
+    // Check if session has expired
+    const now = new Date()
+    const expiresAt = new Date(session.expires_at)
+    
+    if (now >= expiresAt) {
+      console.warn('⏰ Session has expired')
+      return createCorsErrorResponse('Session expired', origin, 401, isExtensionRequest)
+    }
+
+    // Update last used timestamp
+    await supabaseService
+      .from('extension_sessions')
+      .update({ last_used_at: now.toISOString() })
+      .eq('id', tokenPayload.sessionId)
+
+    console.log('✅ Extension token is valid')
 
     // Build response
     const response = {
       success: true,
-      message: 'Extension session revoked successfully',
+      valid: true,
       data: {
         sessionId: tokenPayload.sessionId,
-        revokedAt: new Date().toISOString(),
+        userId: tokenPayload.userId,
+        expiresAt: session.expires_at,
       },
       meta: {
         requestId: crypto.randomUUID(),
@@ -107,7 +123,7 @@ serve(async (req) => {
       },
     }
 
-    console.log('📤 Sending logout response')
+    console.log('📤 Sending verification response')
 
     return createCorsResponse(
       JSON.stringify(response),

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import * as supabaseAuth from '@/lib/auth/supabase-auth'
+import { authManager } from '@/lib/auth/AuthManager'
 
 export default function ResetPassword() {
   const navigate = useNavigate()
@@ -64,7 +64,7 @@ export default function ResetPassword() {
         return
       }
 
-      await supabaseAuth.confirmPasswordReset(tokenMatch[1], password)
+      await authManager.confirmPasswordReset(tokenMatch[1], password)
       setIsSuccess(true)
 
       // Redirect to login after 2 seconds

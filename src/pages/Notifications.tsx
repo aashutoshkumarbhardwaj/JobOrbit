@@ -1,6 +1,6 @@
 import { Bell, Check } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getNotifications, markNotificationAsRead } from "@/integrations/supabase/client";
+import { getNotifications, markNotificationAsRead } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/Layout";
 import { useAuth } from "@/hooks/useAuth";

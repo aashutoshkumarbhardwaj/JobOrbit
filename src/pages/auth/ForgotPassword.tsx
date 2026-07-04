@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Briefcase, Mail, ArrowLeft, CheckCircle } from 'lucide-react'
-import * as supabaseAuth from '@/lib/auth/supabase-auth'
+import { authManager } from '@/lib/auth/AuthManager'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -29,7 +29,7 @@ export default function ForgotPassword() {
 
     setIsLoading(true)
     try {
-      await supabaseAuth.requestPasswordReset(email)
+      await authManager.requestPasswordReset(email)
       setIsSuccess(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to request password reset')
