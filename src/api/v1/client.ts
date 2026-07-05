@@ -499,9 +499,13 @@ const getApiBaseUrl = (): string => {
   const env = import.meta.env.VITE_API_URL
   if (!env) {
     console.warn('⚠️ VITE_API_URL environment variable not set, using Supabase Edge Functions URL')
-    // Fallback to Supabase Edge Functions URL if env var not set
+    // CRITICAL: Must include /functions/v1/ for Edge Functions to work
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dsbkjkwefszqqzukgdtk.supabase.co'
-    return `${supabaseUrl}/functions/v1`
+    // Remove trailing slash if present, then add /functions/v1
+    const cleanUrl = supabaseUrl.replace(/\/$/, '')
+    const fullUrl = `${cleanUrl}/functions/v1`
+    console.log('📡 API Base URL (fallback):', fullUrl)
+    return fullUrl
   }
   // Log the API URL being used
   console.log('📡 API Base URL:', env)
