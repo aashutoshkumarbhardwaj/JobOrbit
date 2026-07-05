@@ -21,6 +21,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import * as jose from 'https://deno.land/x/jose@v5.2.0/index.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 // CORS headers
 const corsHeaders = {
@@ -42,6 +43,12 @@ interface ExtensionSessionResponse {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const isExtensionRequest = req.headers.has('x-extension-token') ||
+    origin?.startsWith('chrome-extension://') ||
+    origin?.startsWith('moz-extension://') ||
+    false
+
   console.log('🔷 ========================================')
   console.log('🔷 NEW REQUEST TO EXTENSION-SESSION')
   console.log('🔷 Method:', req.method)
@@ -217,17 +224,22 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Unexpected error:', error)
-    console.error('❌ FAILED AT: Unknown step - Unexpected error')
-    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('============== ERROR ==============')
+    console.error(error)
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
-      } as ExtensionSessionResponse),
+        error: String(error),
+        message: error instanceof Error ? error.message : null,
+        stack: error instanceof Error ? error.stack : null,
+      }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: {
+          ...getCorsHeaders(origin, isExtensionRequest),
+          'Content-Type': 'application/json',
+        },
       }
     )
   }
