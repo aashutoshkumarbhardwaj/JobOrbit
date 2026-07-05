@@ -34,11 +34,9 @@ const corsHeaders = {
 
 interface ExtensionSessionResponse {
   success: boolean
-  data?: {
-    extension_token: string
-    extension_token_expires_in: number
-    session_id: string
-  }
+  extension_token?: string
+  extension_token_expires_in?: number
+  session_id?: string
   error?: string
   details?: string
 }
@@ -167,6 +165,9 @@ serve(async (req) => {
       .sign(secret)
 
     const tokenHash = await hashToken(extensionToken)
+    console.log("tokenHash =", tokenHash)
+    console.log("typeof tokenHash =", typeof tokenHash)
+    console.log("tokenHash length =", tokenHash?.length)
     const userAgent = req.headers.get('User-Agent') || 'Unknown Device'
 
     // Use service role client for DB operations
@@ -178,28 +179,32 @@ serve(async (req) => {
     console.log('STEP 3c: Service role client created')
 
     console.log('STEP 3d: Inserting session into extension_sessions table...')
-    console.log("===== DEBUG =====")
-    console.log("Extension token:", extensionToken)
-    console.log("Token hash:", tokenHash)
-    console.log("typeof tokenHash:", typeof tokenHash)
-    console.log("=================")
-    const { error: insertError } = await supabaseAdmin
-      .from('extension_sessions')
-      .insert({
-        id: sessionId,
-        user_id: user.id,
-        token_hash: tokenHash,
-        device_name: userAgent.substring(0, 255),
-        expires_at: expiresAt.toISOString(),
-        is_active: true,
-      })
+    const insertData = {
+      id: sessionId,
+      user_id: user.id,
+      token_hash: tokenHash,
+      device_name: userAgent.substring(0, 255),
+      expires_at: expiresAt.toISOString(),
+      is_active: true,
+    }
 
-    if (insertError) {
-      console.error('❌ Failed to create session in DB:', insertError)
+    console.log("INSERT DATA")
+    console.log(JSON.stringify(insertData, null, 2))
+
+    const { data, error } = await supabaseAdmin
+      .from("extension_sessions")
+      .insert(insertData)
+      .select()
+
+    console.log("Insert data returned:", data)
+    console.log("Insert error:", error)
+
+    if (error) {
+      console.error('❌ Failed to create session in DB:', error)
       console.error('❌ FAILED AT: STEP 3d - Database insert')
-      console.error(insertError)
+      console.error(error)
       return new Response(
-        JSON.stringify(insertError),
+        JSON.stringify(error),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -214,11 +219,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        data: {
-          extension_token: extensionToken,
-          extension_token_expires_in: 3600, // 1 hour
-          session_id: sessionId,
-        },
+        extension_token: extensionToken,
+        extension_token_expires_in: 3600, // 1 hour
+        session_id: sessionId,
       } as ExtensionSessionResponse),
       {
         status: 200,
