@@ -175,11 +175,9 @@ serve(async (req) => {
     if (insertError) {
       console.error('❌ Failed to create session in DB:', insertError)
       console.error('❌ FAILED AT: STEP 3d - Database insert')
+      console.error(insertError)
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to create session',
-        } as ExtensionSessionResponse),
+        JSON.stringify(insertError),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
