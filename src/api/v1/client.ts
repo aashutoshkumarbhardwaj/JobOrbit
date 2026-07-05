@@ -507,9 +507,13 @@ class APIClient {
 const getApiBaseUrl = (): string => {
   const env = import.meta.env.VITE_API_URL
   if (!env) {
-    console.warn('VITE_API_URL environment variable not set')
-    return 'http://localhost:3000/api/v1'
+    console.warn('⚠️ VITE_API_URL environment variable not set, using Supabase Edge Functions URL')
+    // Fallback to Supabase Edge Functions URL if env var not set
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dsbkjkwefszqqzukgdtk.supabase.co'
+    return `${supabaseUrl}/functions/v1`
   }
+  // Log the API URL being used
+  console.log('📡 API Base URL:', env)
   return env
 }
 

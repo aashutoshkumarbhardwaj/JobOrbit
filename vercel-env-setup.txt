@@ -1,0 +1,95 @@
+==============================================
+VERCEL ENVIRONMENT VARIABLES - COPY/PASTE READY
+==============================================
+
+Go to: https://vercel.com/dashboard
+Select Project: job-orbit-flax
+Click: Settings → Environment Variables
+Click: Add New
+
+For EACH variable below:
+1. Click "Add New"
+2. Copy the Name
+3. Copy the Value
+4. Select ALL environments (Production, Preview, Development)
+5. Click "Save"
+
+==============================================
+VARIABLE 1
+==============================================
+Name:
+VITE_SUPABASE_URL
+
+Value:
+https://dsbkjkwefszqqzukgdtk.supabase.co
+
+Environments: ✓ Production ✓ Preview ✓ Development
+
+==============================================
+VARIABLE 2 (CRITICAL - THIS ONE FIXES THE ISSUE)
+==============================================
+Name:
+VITE_API_URL
+
+Value:
+https://dsbkjkwefszqqzukgdtk.supabase.co/functions/v1
+
+Environments: ✓ Production ✓ Preview ✓ Development
+
+IMPORTANT: Must end with /functions/v1
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+==============================================
+VARIABLE 3
+==============================================
+Name:
+VITE_SUPABASE_PUBLISHABLE_KEY
+
+Value:
+sb_publishable_KbTCR-8BEKmM3AZYDGauhg_A3i41bVt
+
+Environments: ✓ Production ✓ Preview ✓ Development
+
+==============================================
+AFTER ADDING ALL 3 VARIABLES
+==============================================
+
+1. Go to Deployments tab
+2. Click on latest deployment
+3. Click ⋯ (three dots)
+4. Click "Redeploy"
+5. UNCHECK "Use existing Build Cache"
+6. Click "Redeploy"
+
+Wait ~2 minutes for deployment to complete.
+
+==============================================
+VERIFY THE FIX
+==============================================
+
+After redeployment:
+
+1. Go to: https://job-orbit-flax.vercel.app
+2. Open DevTools (F12) → Console
+3. Look for this log:
+   📡 API Base URL: https://dsbkjkwefszqqzukgdtk.supabase.co/functions/v1
+   
+4. Should see /functions/v1 in the URL ✅
+
+If you see:
+   ⚠️ VITE_API_URL environment variable not set
+   
+Then the env vars weren't applied. Redeploy again WITHOUT cache.
+
+==============================================
+THEN DEPLOY EDGE FUNCTIONS
+==============================================
+
+After Vercel is fixed, deploy Edge Functions:
+
+brew install supabase/tap/supabase
+./deploy-edge-functions.sh
+
+This will fix the 500 errors and CORS issues.
+
+==============================================
