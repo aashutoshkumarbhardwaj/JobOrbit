@@ -178,8 +178,11 @@ serve(async (req) => {
     console.log('STEP 3c: Service role client created')
 
     console.log('STEP 3d: Inserting session into extension_sessions table...')
-    console.log('Extension token:', extensionToken.substring(0, 30))
-    console.log('Token hash:', tokenHash)
+    console.log("===== DEBUG =====")
+    console.log("Extension token:", extensionToken)
+    console.log("Token hash:", tokenHash)
+    console.log("typeof tokenHash:", typeof tokenHash)
+    console.log("=================")
     const { error: insertError } = await supabaseAdmin
       .from('extension_sessions')
       .insert({
