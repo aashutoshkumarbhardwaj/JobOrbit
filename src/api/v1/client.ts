@@ -104,9 +104,15 @@ class APIClient {
    */
   private async getAuthToken(): Promise<string | null> {
     try {
-      return await authManager.getAccessToken()
+      const token = await authManager.getAccessToken()
+      if (token) {
+        console.log('✅ Got auth token from AuthManager:', token.substring(0, 20) + '...')
+      } else {
+        console.warn('⚠️ No auth token available from AuthManager')
+      }
+      return token
     } catch (error) {
-      console.error('Failed to get auth token:', error)
+      console.error('❌ Failed to get auth token:', error)
       return null
     }
   }
@@ -133,6 +139,12 @@ class APIClient {
     const token = await this.getAuthToken()
     if (token && this.validateToken(token)) {
       headers['Authorization'] = `Bearer ${token}`
+      console.log('✅ Authorization header added to request')
+    } else {
+      console.warn('⚠️ No valid auth token - Authorization header NOT added')
+      if (token) {
+        console.warn('⚠️ Token exists but failed validation')
+      }
     }
 
     // Add extension token if available
