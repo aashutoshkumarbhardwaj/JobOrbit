@@ -169,24 +169,25 @@ class APIClient {
   /**
    * Build complete URL with query parameters (safely sanitized)
    */
-  private buildUrl(
-    endpoint: string,
-    params?: Record<string, unknown>
-  ): string {
-    const url = new URL(endpoint, this.baseUrl)
+private buildUrl(
+  endpoint: string,
+  params?: Record<string, unknown>
+): string {
+  const cleanBase = this.baseUrl.replace(/\/$/, "")
+  const cleanEndpoint = endpoint.replace(/^\/+/, "")
 
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          // Sanitize parameter values to prevent injection attacks
-          const sanitized = String(value).substring(0, 1000)
-          url.searchParams.append(key, sanitized)
-        }
-      })
-    }
+  const url = new URL(`${cleanBase}/${cleanEndpoint}`)
 
-    return url.toString()
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        url.searchParams.append(key, String(value))
+      }
+    })
   }
+
+  return url.toString()
+}
 
   /**
    * Handle rate limiting headers
