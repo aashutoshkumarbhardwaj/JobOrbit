@@ -22,6 +22,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import * as jose from 'https://deno.land/x/jose@v5.2.0/index.ts'
 import { getCorsHeaders } from '../_shared/cors.ts'
+import { hashToken } from '../_shared/extension-token.ts'
 
 // CORS headers
 const corsHeaders = {
@@ -153,6 +154,21 @@ serve(async (req) => {
     const expiresAt = new Date(Date.now() + 3600 * 1000) // 1 hour from now
     console.log('STEP 3a: Generated session ID:', sessionId)
 
+    // Generate minimal Extension Session Token before insert so its hash can be stored.
+    const secret = new TextEncoder().encode(extensionTokenSecret)
+    const extensionToken = await new jose.SignJWT({
+      sessionId,
+      userId: user.id,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setAudience('extension')
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(secret)
+
+    const tokenHash = await hashToken(extensionToken)
+    const userAgent = req.headers.get('User-Agent') || 'Unknown Device'
+
     // Use service role client for DB operations
     console.log('STEP 3b: Creating service role client...')
     const supabaseAdmin = createClient(
@@ -162,12 +178,15 @@ serve(async (req) => {
     console.log('STEP 3c: Service role client created')
 
     console.log('STEP 3d: Inserting session into extension_sessions table...')
+    console.log('Extension token:', extensionToken.substring(0, 30))
+    console.log('Token hash:', tokenHash)
     const { error: insertError } = await supabaseAdmin
       .from('extension_sessions')
       .insert({
         id: sessionId,
         user_id: user.id,
-        device_name: req.headers.get('User-Agent')?.substring(0, 255) || 'Unknown Device',
+        token_hash: tokenHash,
+        device_name: userAgent.substring(0, 255),
         expires_at: expiresAt.toISOString(),
         is_active: true,
       })
@@ -186,24 +205,6 @@ serve(async (req) => {
     }
 
     console.log('✅ STEP 3 complete: Extension session created in DB:', sessionId)
-
-    // Generate minimal Extension Session Token
-    console.log('STEP 4: Generating extension token JWT...')
-    // Contains only sessionId - backend looks up user_id from DB
-    const secret = new TextEncoder().encode(extensionTokenSecret)
-    console.log('STEP 4a: Secret encoded')
-    
-    const extensionToken = await new jose.SignJWT({
-      sessionId: sessionId,
-      userId: user.id, // For audit trail only
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setAudience('extension')
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(secret)
-
-    console.log('✅ STEP 4 complete: Extension token generated')
 
     // Return success response
     console.log('STEP 5: Returning success response...')
