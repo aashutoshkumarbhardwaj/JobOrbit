@@ -125,9 +125,9 @@ class APIClient {
     }
 
     // Add CSRF token for state-changing requests
-    if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken
-    }
+    // if (this.csrfToken) {
+    //   headers['X-CSRF-Token'] = this.csrfToken
+    // }
 
     // Get token from AuthManager (async)
     const token = await this.getAuthToken()
@@ -188,6 +188,8 @@ private buildUrl(
 
   return url.toString()
 }
+
+
 
   /**
    * Handle rate limiting headers
