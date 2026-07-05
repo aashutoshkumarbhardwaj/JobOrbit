@@ -38,6 +38,7 @@ interface ExtensionSessionResponse {
     session_id: string
   }
   error?: string
+  details?: string
 }
 
 serve(async (req) => {
@@ -64,31 +65,35 @@ serve(async (req) => {
     }
 
     const accessToken = authHeader.replace('Bearer ', '')
+    
+    console.log('🔍 Validating JWT token (first 50 chars):', accessToken.substring(0, 50) + '...')
 
     // Initialize Supabase client with user's JWT
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
-    })
+    console.log('🔍 Supabase URL:', supabaseUrl)
+    console.log('🔍 Using anon key (first 20 chars):', supabaseAnonKey.substring(0, 20) + '...')
+    
+    // Create client and validate the JWT directly
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-    // Verify user is authenticated
+    // Verify user is authenticated by passing the JWT to getUser()
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser(accessToken)
 
     if (userError || !user) {
-      console.error('❌ Invalid or expired JWT:', userError)
+      console.error('❌ Invalid or expired JWT')
+      console.error('❌ Error details:', JSON.stringify(userError, null, 2))
+      console.error('❌ User object:', user)
+      
       return new Response(
         JSON.stringify({
           success: false,
           error: 'Invalid or expired authentication token',
+          details: userError?.message || 'No user found',
         } as ExtensionSessionResponse),
         {
           status: 401,
@@ -98,6 +103,7 @@ serve(async (req) => {
     }
 
     console.log('✅ User authenticated:', user.id)
+    console.log('✅ User email:', user.email)
 
     // Get extension token signing secret
     const extensionTokenSecret = Deno.env.get('EXTENSION_TOKEN_SECRET')

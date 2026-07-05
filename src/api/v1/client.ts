@@ -343,7 +343,8 @@ private buildUrl(
   private async request<T>(
     method: string,
     endpoint: string,
-    config?: ApiRequestConfig
+    config?: ApiRequestConfig,
+    retryCount = 0
   ): Promise<T> {
     // Check rate limiting
     if (!this.checkRateLimit(endpoint)) {
@@ -374,21 +375,42 @@ private buildUrl(
       method,
       url,
       timestamp: new Date().toISOString(),
+      retryCount,
     })
 
     try {
       const response = await fetch(url, fetchOptions)
       return await this.handleResponse<T>(response, requestId)
     } catch (error) {
-      // Handle 401 Unauthorized - try token refresh
+      // Handle 401 Unauthorized - try token refresh (max 2 retries to prevent infinite loops)
       if (
         error instanceof ApiErrorClass &&
-        error.statusCode === 401
+        error.statusCode === 401 &&
+        retryCount < 2
       ) {
-        console.log('Token expired, attempting refresh...')
-        await this.handleTokenRefresh()
-        // Retry the request with new token
-        return this.request<T>(method, endpoint, config)
+        console.log(`Token expired, attempting refresh (retry ${retryCount + 1}/2)...`)
+        
+        try {
+          await this.handleTokenRefresh()
+          // Retry the request with new token
+          return this.request<T>(method, endpoint, config, retryCount + 1)
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError)
+          // If refresh fails, don't retry - throw the original 401 error
+          throw error
+        }
+      }
+
+      // If we hit max retries or refresh failed, the session is truly invalid
+      if (
+        error instanceof ApiErrorClass &&
+        error.statusCode === 401 &&
+        retryCount >= 2
+      ) {
+        console.error('❌ Max retry attempts reached for 401 - session invalid')
+        if (this.onSessionExpired) {
+          this.onSessionExpired()
+        }
       }
 
       // Re-throw other errors
