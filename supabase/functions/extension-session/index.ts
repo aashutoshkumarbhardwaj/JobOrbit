@@ -42,16 +42,26 @@ interface ExtensionSessionResponse {
 }
 
 serve(async (req) => {
+  console.log('🔷 ========================================')
+  console.log('🔷 NEW REQUEST TO EXTENSION-SESSION')
+  console.log('🔷 Method:', req.method)
+  console.log('🔷 URL:', req.url)
+  console.log('🔷 Timestamp:', new Date().toISOString())
+  console.log('🔷 ========================================')
+  
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    console.log('✅ CORS preflight - returning OK')
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    console.log('STEP 0: Starting authentication verification...')
     // Verify authentication
     const authHeader = req.headers.get('Authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('❌ Missing or invalid Authorization header')
+      console.error('❌ FAILED AT: STEP 0 - Authorization header check')
       return new Response(
         JSON.stringify({
           success: false,
@@ -66,9 +76,11 @@ serve(async (req) => {
 
     const accessToken = authHeader.replace('Bearer ', '')
     
+    console.log('✅ STEP 0 complete: Authorization header found')
     console.log('🔍 Validating JWT token (first 50 chars):', accessToken.substring(0, 50) + '...')
 
     // Initialize Supabase client with user's JWT
+    console.log('STEP 0a: Initializing Supabase client...')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     
@@ -77,8 +89,10 @@ serve(async (req) => {
     
     // Create client and validate the JWT directly
     const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    console.log('✅ STEP 0a complete: Supabase client created')
 
     // Verify user is authenticated by passing the JWT to getUser()
+    console.log('STEP 0b: Validating JWT with Supabase...')
     const {
       data: { user },
       error: userError,
@@ -86,6 +100,7 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error('❌ Invalid or expired JWT')
+      console.error('❌ FAILED AT: STEP 0b - JWT validation')
       console.error('❌ Error details:', JSON.stringify(userError, null, 2))
       console.error('❌ User object:', user)
       
@@ -104,11 +119,14 @@ serve(async (req) => {
 
     console.log('✅ User authenticated:', user.id)
     console.log('✅ User email:', user.email)
+    console.log('STEP 1: User authentication complete')
 
     // Get extension token signing secret
+    console.log('STEP 2: Getting extension token secret...')
     const extensionTokenSecret = Deno.env.get('EXTENSION_TOKEN_SECRET')
     if (!extensionTokenSecret || extensionTokenSecret.length < 32) {
       console.error('❌ EXTENSION_TOKEN_SECRET not configured or too short')
+      console.error('❌ FAILED AT: STEP 2 - Extension token secret validation')
       return new Response(
         JSON.stringify({
           success: false,
@@ -120,17 +138,23 @@ serve(async (req) => {
         }
       )
     }
+    console.log('✅ STEP 2 complete: Extension token secret validated')
 
     // Create extension session in database
+    console.log('STEP 3: Creating extension session in database...')
     const sessionId = crypto.randomUUID()
     const expiresAt = new Date(Date.now() + 3600 * 1000) // 1 hour from now
+    console.log('STEP 3a: Generated session ID:', sessionId)
 
     // Use service role client for DB operations
+    console.log('STEP 3b: Creating service role client...')
     const supabaseAdmin = createClient(
       supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+    console.log('STEP 3c: Service role client created')
 
+    console.log('STEP 3d: Inserting session into extension_sessions table...')
     const { error: insertError } = await supabaseAdmin
       .from('extension_sessions')
       .insert({
@@ -143,6 +167,7 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('❌ Failed to create session in DB:', insertError)
+      console.error('❌ FAILED AT: STEP 3d - Database insert')
       return new Response(
         JSON.stringify({
           success: false,
@@ -155,11 +180,14 @@ serve(async (req) => {
       )
     }
 
-    console.log('✅ Extension session created in DB:', sessionId)
+    console.log('✅ STEP 3 complete: Extension session created in DB:', sessionId)
 
     // Generate minimal Extension Session Token
+    console.log('STEP 4: Generating extension token JWT...')
     // Contains only sessionId - backend looks up user_id from DB
     const secret = new TextEncoder().encode(extensionTokenSecret)
+    console.log('STEP 4a: Secret encoded')
+    
     const extensionToken = await new jose.SignJWT({
       sessionId: sessionId,
       userId: user.id, // For audit trail only
@@ -170,9 +198,10 @@ serve(async (req) => {
       .setExpirationTime('1h')
       .sign(secret)
 
-    console.log('✅ Extension token generated')
+    console.log('✅ STEP 4 complete: Extension token generated')
 
     // Return success response
+    console.log('STEP 5: Returning success response...')
     return new Response(
       JSON.stringify({
         success: true,
@@ -189,6 +218,8 @@ serve(async (req) => {
     )
   } catch (error) {
     console.error('❌ Unexpected error:', error)
+    console.error('❌ FAILED AT: Unknown step - Unexpected error')
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return new Response(
       JSON.stringify({
         success: false,
