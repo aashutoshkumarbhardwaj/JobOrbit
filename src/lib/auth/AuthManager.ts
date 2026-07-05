@@ -91,6 +91,11 @@ class AuthManager {
     console.log('🔐 AuthManager initializing...')
 
     try {
+      // Check if supabase client is properly configured
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
       // Get initial session
       const { data: { session }, error } = await supabase.auth.getSession()
       
