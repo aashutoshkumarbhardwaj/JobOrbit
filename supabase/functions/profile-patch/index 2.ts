@@ -1,6 +1,6 @@
 /**
- * GET /profile
- * Fetches the current user's profile
+ * PATCH /profile
+ * Updates the current user's profile
  * 
  * Security: Requires valid JWT token, RLS enforces user_id match
  */
@@ -25,6 +25,9 @@ serve(async (req) => {
       return createCorsErrorResponse('Missing authorization header', origin, 401, isExtensionRequest)
     }
 
+    // Parse request body
+    const body = await req.json()
+
     // Create Supabase client with user token
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') || '',
@@ -40,71 +43,21 @@ serve(async (req) => {
       return createCorsErrorResponse('Unauthorized', origin, 401, isExtensionRequest)
     }
 
-    // Fetch profile (RLS will automatically filter to user_id)
-    // Use maybeSingle() to avoid PGRST116 error for new users without a profile
+    // Update profile (RLS will automatically enforce user_id match)
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('*')
+      .update({
+        ...body,
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      })
       .eq('user_id', user.id)
-      .maybeSingle()
+      .select()
+      .single()
 
     if (error) {
-      console.error('Profile fetch error:', error)
-      return createCorsErrorResponse(error.message || 'Failed to fetch profile', origin, 500, isExtensionRequest)
-    }
-
-    // If no profile exists, create a default one
-    if (!profile) {
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: user.id,
-          email: user.email,
-          first_name: user.user_metadata?.first_name || '',
-          last_name: user.user_metadata?.last_name || '',
-        })
-        .select()
-        .single()
-
-      if (createError) {
-        console.error('Profile creation error:', createError)
-        // Return empty profile instead of 500
-        return createCorsResponse(
-          JSON.stringify({
-            success: true,
-            data: null,
-            meta: {
-              requestId: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-              note: 'Profile will be created on first update',
-            },
-          }),
-          origin,
-          {
-            status: 200,
-            contentType: 'application/json',
-            isExtensionRequest,
-          }
-        )
-      }
-
-      return createCorsResponse(
-        JSON.stringify({
-          success: true,
-          data: newProfile,
-          meta: {
-            requestId: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            note: 'Profile created automatically',
-          },
-        }),
-        origin,
-        {
-          status: 200,
-          contentType: 'application/json',
-          isExtensionRequest,
-        }
-      )
+      console.error('Profile update error:', error)
+      return createCorsErrorResponse(error.message || 'Failed to update profile', origin, 500, isExtensionRequest)
     }
 
     return createCorsResponse(

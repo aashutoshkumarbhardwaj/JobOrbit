@@ -17,6 +17,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/lib/auth/auth-context'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { AlertCircle } from 'lucide-react'
+import { apiClient } from '@/api/v1/client'
 
 interface CallbackState {
   status: 'loading' | 'success' | 'error'
@@ -42,49 +43,26 @@ export default function AuthCallback() {
   })
 
   /**
-   * Create extension session via edge function
+   * Create extension session via API client
+   * Uses apiClient which handles baseUrl + auth headers automatically
    */
-  const createExtensionSession = async (accessToken: string): Promise<ExtensionSessionResponse> => {
+  const createExtensionSession = async (): Promise<ExtensionSessionResponse> => {
     try {
-      console.log('🔌 Creating extension session...')
+      console.log('🔌 Creating extension session via apiClient...')
       
-      // IMPORTANT: Must use full Edge Function URL with /functions/v1/ path
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://dsbkjkwefszqqzukgdtk.supabase.co/functions/v1'
-      const fullUrl = apiUrl.endsWith('/') ? `${apiUrl}extension-session` : `${apiUrl}/extension-session`
-      
-      console.log('📡 Request URL:', fullUrl)
+      // Use apiClient which automatically:
+      // - Constructs correct URL (baseUrl + /extension-session)
+      // - Adds Authorization: Bearer <access_token> header
+      // - Handles errors properly
+      const response = await apiClient.get<ExtensionSessionResponse>('/extension-session')
 
-      const response = await fetch(
-        fullUrl,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-
-      if (!response.ok) {
-        console.error('❌ Extension session creation failed:', response.status)
-        return {
-          success: false,
-          error: `HTTP ${response.status}`,
-        }
-      }
-
-      const data = await response.json()
       console.log('✅ Extension session created:', {
-        session_id: data.data?.session_id,
-        expires_in: data.data?.extension_token_expires_in,
+        success: response.success,
+        session_id: response.session_id,
+        expires_in: response.extension_token_expires_in,
       })
 
-      return {
-        success: data.success,
-        extension_token: data.data?.extension_token,
-        extension_token_expires_in: data.data?.extension_token_expires_in,
-        session_id: data.data?.session_id,
-      }
+      return response
     } catch (error) {
       console.error('❌ Error creating extension session:', error)
       return {
@@ -347,7 +325,9 @@ export default function AuthCallback() {
           console.log('🔌 Extension auth detected - returning token as JSON')
           
           try {
-            const extensionSession = await createExtensionSession(session.access_token)
+            // Call extension session endpoint via apiClient
+            // No need to pass access_token - apiClient gets it automatically from AuthManager
+            const extensionSession = await createExtensionSession()
 
             if (extensionSession.success && extensionSession.extension_token) {
               console.log('✅ Extension session created')

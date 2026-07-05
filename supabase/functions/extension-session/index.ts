@@ -1,225 +1,196 @@
 /**
  * Extension Session Endpoint
- * GET /functions/v1/extension-session
  * 
- * Creates a secure extension session with database tracking:
+ * Purpose: Create an extension session with database tracking
  * 
  * Flow:
- * 1. Verify user is authenticated via Supabase JWT
- * 2. Hash the JWT token
- * 3. Create extension_sessions DB entry
- * 4. Return Extension Session Token + session ID
- * 5. Token never contains sensitive data
+ * 1. User authenticates via Supabase OAuth
+ * 2. Frontend calls this endpoint with Supabase JWT
+ * 3. Creates extension_sessions DB entry for device tracking
+ * 4. Generates minimal Extension Session Token (JWT with sessionId only)
+ * 5. Returns token for all future API calls
+ * 6. Never exposes service-role keys
  * 
- * Token Structure (Minimal):
- * {
- *   "sessionId": "uuid", // Database session ID
- *   "userId": "uuid",
- *   "issuedAt": timestamp,
- *   "expiresAt": timestamp,
- *   "aud": "extension"
- * }
- * 
- * Benefits:
- * - Sessions can be revoked immediately
- * - Device-level logout possible
- * - Multi-device management
- * - Token theft recovery (hash lookup)
- * - Better audit trail
+ * Security:
+ * - Validates Supabase JWT
+ * - Creates DB-tracked session
+ * - Returns minimal JWT (session_id only)
+ * - 1-hour expiration
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.40.0'
-import { SignJWT } from 'https://esm.sh/jose@5.0.0'
-import { getCorsHeaders, securityHeaders, handleCorsPreflight, createCorsResponse, createCorsErrorResponse } from '../_shared/cors.ts'
-import { hashToken, extractBrowserInfo, extractOSInfo } from '../_shared/extension-token.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+import * as jose from 'https://deno.land/x/jose@v5.2.0/index.ts'
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+}
+
+interface ExtensionSessionResponse {
+  success: boolean
+  data?: {
+    extension_token: string
+    extension_token_expires_in: number
+    session_id: string
+  }
+  error?: string
+}
 
 serve(async (req) => {
-  const origin = req.headers.get('origin')
-  const isExtensionRequest = req.headers.has('x-extension-token')
-
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return handleCorsPreflight(origin, isExtensionRequest)
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('📱 Extension session request received')
-    console.log(`📍 Method: ${req.method}`)
-
-    // Only allow GET requests for session creation
-    if (req.method !== 'GET') {
-      return createCorsErrorResponse('Method not allowed. Use GET.', origin, 405, isExtensionRequest)
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ Missing or invalid Authorization header')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Missing or invalid Authorization header',
+        } as ExtensionSessionResponse),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
-    // Get authorization header
-    const authHeader = req.headers.get('authorization')
-    console.log('🔐 Auth header present:', !!authHeader)
+    const accessToken = authHeader.replace('Bearer ', '')
 
-    if (!authHeader) {
-      console.warn('⚠️  Missing authorization header')
-      return createCorsErrorResponse('Missing authorization header', origin, 401, isExtensionRequest)
-    }
-
-    // Extract token from Bearer scheme
-    const token = authHeader.replace('Bearer ', '').trim()
-    if (!token) {
-      console.warn('⚠️  Invalid token format')
-      return createCorsErrorResponse('Invalid authorization header format', origin, 401, isExtensionRequest)
-    }
-
-    // Create Supabase clients
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-
-    // Client with user token (for verification)
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+    // Initialize Supabase client with user's JWT
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
     })
 
-    // Service client (for writing to extension_sessions table)
-    const supabaseService = createClient(
-      supabaseUrl,
-      supabaseServiceKey,
-      { auth: { persistSession: false } }
-    )
-
-    console.log('🔐 Verifying user with token...')
-
     // Verify user is authenticated
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      console.error('❌ Auth error:', userError?.message)
-      return createCorsErrorResponse(userError?.message || 'Unauthorized', origin, 401, isExtensionRequest)
+      console.error('❌ Invalid or expired JWT:', userError)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid or expired authentication token',
+        } as ExtensionSessionResponse),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
-    console.log('✅ User verified:', user.id)
+    console.log('✅ User authenticated:', user.id)
 
-    // Get device info from headers
-    const userAgent = req.headers.get('user-agent') || 'Unknown'
-    const deviceId = req.headers.get('x-device-id') || `device_${Date.now()}`
-    const deviceName = req.headers.get('x-device-name') || 'Chrome Extension'
-
-    // Get current session
-    const { data: { session }, error: sessionError } = await supabaseUser.auth.getSession()
-
-    if (sessionError || !session) {
-      console.error('❌ Session error:', sessionError?.message)
-      return createCorsErrorResponse(sessionError?.message || 'Failed to get session', origin, 401, isExtensionRequest)
-    }
-
-    console.log('✅ Session obtained')
-
-    // Generate extension session token
-    console.log('🔐 Creating extension session token...')
-
+    // Get extension token signing secret
     const extensionTokenSecret = Deno.env.get('EXTENSION_TOKEN_SECRET')
-    if (!extensionTokenSecret) {
-      console.error('❌ EXTENSION_TOKEN_SECRET not configured')
-      return createCorsErrorResponse('Server configuration error', origin, 500, isExtensionRequest)
+    if (!extensionTokenSecret || extensionTokenSecret.length < 32) {
+      console.error('❌ EXTENSION_TOKEN_SECRET not configured or too short')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Server configuration error',
+        } as ExtensionSessionResponse),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
-    const now = Math.floor(Date.now() / 1000)
-    const expiresInSeconds = 3600 // 1 hour
-    const expiresAt = now + expiresInSeconds
+    // Create extension session in database
+    const sessionId = crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + 3600 * 1000) // 1 hour from now
 
-    // Create a minimal JWT (no sensitive data)
-    // sessionId will be used to look up the full session in DB
-    let sessionId: string
+    // Use service role client for DB operations
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
 
-    try {
-      // First, create the session in database
-      console.log('📝 Creating extension session in database...')
+    const { error: insertError } = await supabaseAdmin
+      .from('extension_sessions')
+      .insert({
+        id: sessionId,
+        user_id: user.id,
+        device_name: req.headers.get('User-Agent')?.substring(0, 255) || 'Unknown Device',
+        expires_at: expiresAt.toISOString(),
+        is_active: true,
+      })
 
-      // Hash the token for secure storage (SHA256)
-      const tokenHash = await hashToken(token)
+    if (insertError) {
+      console.error('❌ Failed to create session in DB:', insertError)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to create session',
+        } as ExtensionSessionResponse),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
 
-      const { data: dbSession, error: dbError } = await supabaseService
-        .from('extension_sessions')
-        .insert({
-          user_id: user.id,
-          session_token_hash: tokenHash,
-          device_name: deviceName,
-          device_id: deviceId,
-          browser: extractBrowserInfo(userAgent),
-          os: extractOSInfo(userAgent),
-          expires_at: new Date(expiresAt * 1000).toISOString(),
-          user_agent: userAgent,
-          metadata: {
-            oauth_provider: user.app_metadata?.provider || 'unknown',
-            auth_method: 'oauth',
-          },
-        })
-        .select('id')
-        .single()
+    console.log('✅ Extension session created in DB:', sessionId)
 
-      if (dbError || !dbSession) {
-        console.error('❌ Failed to create session in DB:', dbError?.message)
-        throw new Error('Failed to create session record')
-      }
+    // Generate minimal Extension Session Token
+    // Contains only sessionId - backend looks up user_id from DB
+    const secret = new TextEncoder().encode(extensionTokenSecret)
+    const extensionToken = await new jose.SignJWT({
+      sessionId: sessionId,
+      userId: user.id, // For audit trail only
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setAudience('extension')
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(secret)
 
-      sessionId = dbSession.id
-      console.log('✅ Session created in DB:', sessionId)
+    console.log('✅ Extension token generated')
 
-      // Now create JWT with minimal payload
-      const jwtPayload = {
-        sessionId: sessionId,
-        userId: user.id,
-        iss: 'https://joborbit.com',
-        sub: user.id,
-        aud: 'extension',
-        iat: now,
-        exp: expiresAt,
-      }
-
-      const extensionToken = await new SignJWT(jwtPayload)
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt(now)
-        .setExpirationTime(expiresAt)
-        .sign(new TextEncoder().encode(extensionTokenSecret))
-
-      console.log('✅ Extension token created')
-
-      // Build response
-      const response = {
+    // Return success response
+    return new Response(
+      JSON.stringify({
         success: true,
         data: {
           extension_token: extensionToken,
-          extension_token_expires_in: expiresInSeconds,
-          session_id: sessionId, // Include session ID for reference
-          user: {
-            id: user.id,
-            email: user.email,
-            created_at: user.created_at,
-          },
+          extension_token_expires_in: 3600, // 1 hour
+          session_id: sessionId,
         },
-        meta: {
-          requestId: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          device_name: deviceName,
-          device_id: deviceId,
-        },
+      } as ExtensionSessionResponse),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
-
-      console.log('📤 Sending extension session response')
-
-      return createCorsResponse(
-        JSON.stringify(response),
-        origin,
-        {
-          status: 200,
-          contentType: 'application/json',
-          isExtensionRequest: true,
-        }
-      )
-    } catch (tokenError) {
-      console.error('❌ Failed to create extension token:', tokenError)
-      return createCorsErrorResponse('Failed to create extension token', origin, 500, isExtensionRequest)
-    }
+    )
   } catch (error) {
-    console.error('❌ Error:', error)
-    return createCorsErrorResponse('Internal server error', origin, 500, isExtensionRequest)
+    console.error('❌ Unexpected error:', error)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal server error',
+      } as ExtensionSessionResponse),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    )
   }
 })

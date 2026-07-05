@@ -3,7 +3,7 @@
  * Handles all HTTP requests with authentication, error handling, and logging
  * 
  * Security Features:
- * - JWT token management and refresh
+ * - JWT token management via AuthManager (Supabase session)
  * - Extension token support
  * - Rate limit tracking
  * - Session expiration handling
@@ -13,11 +13,11 @@
 
 import { ApiResponse, ApiError, ApiErrorClass, ApiRequestConfig } from './types'
 import { 
-  sanitizeInput, 
-  isTokenExpired, 
   generateSecureRandomString,
   RateLimiterStore 
 } from '@/lib/security'
+import { authManager } from '@/lib/auth/AuthManager'
+import { supabase } from '@/lib/supabase'
 
 interface ClientConfig {
   baseUrl: string
@@ -100,33 +100,23 @@ class APIClient {
   }
 
   /**
-   * Get current auth token from localStorage
+   * Get current auth token from AuthManager (Supabase session)
    */
-  private getAuthToken(): string | null {
+  private async getAuthToken(): Promise<string | null> {
     try {
-      return localStorage.getItem('auth_token')
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * Set auth token in localStorage
-   */
-  private setAuthToken(token: string): void {
-    try {
-      localStorage.setItem('auth_token', token)
+      return await authManager.getAccessToken()
     } catch (error) {
-      console.error('Failed to store auth token:', error)
+      console.error('Failed to get auth token:', error)
+      return null
     }
   }
 
   /**
    * Build request headers with authentication and security
    */
-  private buildHeaders(
+  private async buildHeaders(
     customHeaders?: Record<string, string>
-  ): Record<string, string> {
+  ): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       // Security headers
@@ -139,7 +129,8 @@ class APIClient {
       headers['X-CSRF-Token'] = this.csrfToken
     }
 
-    const token = this.getAuthToken()
+    // Get token from AuthManager (async)
+    const token = await this.getAuthToken()
     if (token && this.validateToken(token)) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -217,19 +208,20 @@ class APIClient {
 
   /**
    * Handle token refresh if needed
+   * Uses Supabase's built-in session refresh
    */
   private async handleTokenRefresh(): Promise<void> {
-    if (!this.onTokenRefresh) return
-
     try {
-      const newToken = await this.onTokenRefresh()
-      if (newToken) {
-        this.setAuthToken(newToken)
-        // Reset failed attempts on successful refresh
-        this.failedRefreshAttempts = 0
-      } else {
-        throw new Error('No token returned from refresh handler')
+      // Refresh session via Supabase
+      const { data, error } = await supabase.auth.refreshSession()
+      
+      if (error || !data.session) {
+        throw new Error(error?.message || 'Failed to refresh session')
       }
+
+      // Reset failed attempts on successful refresh
+      this.failedRefreshAttempts = 0
+      console.log('✅ Session refreshed successfully')
     } catch (error) {
       this.failedRefreshAttempts++
       
@@ -349,7 +341,7 @@ class APIClient {
 
     const requestId = this.generateRequestId()
     const url = this.buildUrl(endpoint, config?.params)
-    const headers = this.buildHeaders(config?.headers)
+    const headers = await this.buildHeaders(config?.headers)
     const timeout = config?.timeout || this.timeout
 
     const fetchOptions: RequestInit = {
@@ -376,8 +368,7 @@ class APIClient {
       // Handle 401 Unauthorized - try token refresh
       if (
         error instanceof ApiErrorClass &&
-        error.statusCode === 401 &&
-        this.onTokenRefresh
+        error.statusCode === 401
       ) {
         console.log('Token expired, attempting refresh...')
         await this.handleTokenRefresh()

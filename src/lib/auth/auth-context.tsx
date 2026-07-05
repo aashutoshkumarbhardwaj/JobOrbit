@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { authManager, AuthState, SignUpCredentials, SignInCredentials } from './AuthManager'
+import { authManager, AuthState, SignUpCredentials, SignInCredentials } from './AuthManager.ts'
 import { initializeExtensionBridge } from './extension-bridge'
 import { apiClient } from '@/api/v1/client'
 
