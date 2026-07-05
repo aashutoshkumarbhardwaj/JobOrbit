@@ -70,7 +70,14 @@ export default function ExtensionAuth() {
       
     } catch (error) {
       console.error('Extension session creation failed:', error)
-      setError(error instanceof Error ? error.message : 'Failed to create extension session')
+      
+      // Check if error is CORS related (Edge Functions not deployed)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create extension session'
+      if (errorMessage.includes('CORS') || errorMessage.includes('Network request failed') || errorMessage.includes('Failed to fetch')) {
+        setError('Edge Functions not deployed. Please deploy Edge Functions to Supabase first. See deployment guide for instructions.')
+      } else {
+        setError(errorMessage)
+      }
       setState('error')
     }
   }

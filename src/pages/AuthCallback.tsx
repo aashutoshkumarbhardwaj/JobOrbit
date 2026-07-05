@@ -47,9 +47,15 @@ export default function AuthCallback() {
   const createExtensionSession = async (accessToken: string): Promise<ExtensionSessionResponse> => {
     try {
       console.log('🔌 Creating extension session...')
+      
+      // IMPORTANT: Must use full Edge Function URL with /functions/v1/ path
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://dsbkjkwefszqqzukgdtk.supabase.co/functions/v1'
+      const fullUrl = apiUrl.endsWith('/') ? `${apiUrl}extension-session` : `${apiUrl}/extension-session`
+      
+      console.log('📡 Request URL:', fullUrl)
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/extension-session`,
+        fullUrl,
         {
           method: 'GET',
           headers: {
