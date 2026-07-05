@@ -53,10 +53,10 @@ const App = () => {
         <TooltipProvider>
           <AuthProvider>
             <AuthenticatedDataProvider>
-              <SessionTimeoutWarning />
               <Toaster />
               <Sonner />
               <BrowserRouter>
+                <SessionTimeoutWarning />
                 <Routes>
                   <Route path="/" element={<Landing />} />
                   <Route path="/login" element={<Login />} />
