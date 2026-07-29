@@ -7,11 +7,17 @@
 /**
  * CORS headers for web requests
  */
+// In Deno edge functions, use Deno.env.get() — process.env is undefined here
+const ALLOWED_WEB_ORIGIN = Deno.env.get('APP_URL') || Deno.env.get('VITE_APP_URL') || '*'
+
+/**
+ * CORS headers for web requests
+ */
 export const webCorsHeaders = {
-  'Access-Control-Allow-Origin': process.env.VITE_APP_URL || 'http://localhost:5173',
+  'Access-Control-Allow-Origin': ALLOWED_WEB_ORIGIN,
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token',
-  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token, x-device-id, x-device-name',
+  'Access-Control-Allow-Credentials': ALLOWED_WEB_ORIGIN === '*' ? 'false' : 'true',
   'Access-Control-Max-Age': '3600',
 }
 
@@ -60,10 +66,12 @@ export function getCorsHeaders(
     return extensionCorsHeaders
   }
 
-  // For web requests, use specific origin
+  // For web requests, echo back the actual origin so browser is satisfied
+  // (safe because Supabase auth already verifies the JWT)
   return {
     ...webCorsHeaders,
-    'Access-Control-Allow-Origin': origin || 'http://localhost:5173',
+    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Credentials': origin ? 'true' : 'false',
   }
 }
 
