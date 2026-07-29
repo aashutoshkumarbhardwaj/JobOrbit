@@ -24,6 +24,14 @@ export default function ExtensionAuth() {
 
   const checkAuthAndCreateSession = async () => {
     try {
+      // If this is a success redirect from ourself (token already delivered via URL), just show success
+      if (searchParams.get('ext_status') === 'connected') {
+        console.log('✅ Extension auth success redirect detected')
+        setState('success')
+        setTimeout(() => window.close(), 2000)
+        return
+      }
+
       // Check if user is already authenticated
       const authState = authManager.getAuthState()
       
@@ -49,22 +57,22 @@ export default function ExtensionAuth() {
       const response = await getExtensionSession()
       
       if (response.success && response.extension_token) {
-        console.log('✅ Extension session created successfully')
-        
-        // Notify extension via message (if available)
-        await notifyExtension({
-          token: authManager.getCurrentSession()?.access_token, // Legacy fallback
-          extension_token: response.extension_token, // The new secure token!
-          session_id: response.session_id,
-          user: authManager.getCurrentUser()
-        })
-        
+        console.log('✅ Extension session created. Delivering token via URL redirect...')
         setState('success')
         
-        // Auto-close after 3 seconds
+        // Deliver token via URL redirect — the extension popup watches for this URL change
+        // via chrome.tabs.onUpdated. This is 100% reliable, no message-passing needed.
+        const successParams = new URLSearchParams({
+          ext_status: 'connected',
+          ext_token: response.extension_token,
+          ext_expires: String(response.extension_token_expires_in || 2592000),
+          state: searchParams.get('state') || '',
+        })
+        
+        // Small delay so user sees the success message before redirect
         setTimeout(() => {
-          window.close()
-        }, 3000)
+          window.location.replace(`/extension-auth?${successParams.toString()}`)
+        }, 400)
         
       } else {
         throw new Error(response.error || 'Failed to create extension session')
@@ -77,82 +85,6 @@ export default function ExtensionAuth() {
     }
   }
 
-  const notifyExtension = async (authData: any): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      let resolved = false;
-
-      // Timeout fallback
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          reject(new Error('Timeout: The extension did not respond. Is it installed and active?'))
-        }
-      }, 5000);
-
-      // Unified standardized payload
-      const payload = {
-        type: 'JOBORBIT_AUTH_RESPONSE',
-        state: searchParams.get('state') || undefined,
-        payload: {
-          extensionToken: authData.extension_token,
-          sessionId: authData.session_id,
-          expiresAt: Math.floor(Date.now() / 1000) + (authData.expires_in || 2592000),
-          expiresIn: authData.expires_in || 2592000,
-          user: authData.user
-        }
-      };
-
-      const handleResponse = (response: any) => {
-        if (resolved) return;
-        
-        if (chrome.runtime.lastError) {
-          console.debug('Extension not available:', chrome.runtime.lastError);
-          return; // Allow postMessage fallback to work if applicable
-        } 
-        
-        if (response && response.success === false) {
-          resolved = true;
-          clearTimeout(timeoutId);
-          reject(new Error(response.error || 'The extension reported a failure saving the session.'));
-        } else if (response && response.success) {
-          resolved = true;
-          clearTimeout(timeoutId);
-          console.log('✅ Extension acknowledged OAuth success');
-          resolve();
-        }
-      };
-
-      try {
-        const extId = searchParams.get('extensionId') || sessionStorage.getItem('extensionId');
-        
-        if (window.chrome?.runtime?.sendMessage && extId) {
-          console.log('📤 Sending message to extension:', extId);
-          window.chrome.runtime.sendMessage(extId, payload, handleResponse);
-        } else if (window.chrome?.runtime?.sendMessage) {
-          // Fallback (might fail if not called from an extension context)
-          console.log('📤 Sending message without explicit extensionId');
-          window.chrome.runtime.sendMessage(payload, handleResponse);
-        }
-        
-        if (window.opener) {
-          window.opener.postMessage(payload, '*');
-          // For window.opener, we can't easily wait for a direct callback response.
-          if (!window.chrome?.runtime?.sendMessage) {
-            setTimeout(() => {
-              if (!resolved) {
-                resolved = true;
-                clearTimeout(timeoutId);
-                resolve();
-              }
-            }, 1000);
-          }
-        } else if (!window.chrome?.runtime?.sendMessage) {
-          reject(new Error('Extension messaging not available. Please ensure the extension is installed.'));
-        }
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
 
   const handleGoogleLogin = async () => {
     try {
