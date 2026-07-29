@@ -53,7 +53,9 @@ export default function ExtensionAuth() {
         
         // Notify extension via message (if available)
         await notifyExtension({
-          token: authManager.getCurrentSession()?.access_token,
+          token: authManager.getCurrentSession()?.access_token, // Legacy fallback
+          extension_token: response.extension_token, // The new secure token!
+          session_id: response.session_id,
           user: authManager.getCurrentUser()
         })
         
@@ -75,34 +77,73 @@ export default function ExtensionAuth() {
     }
   }
 
-  const notifyExtension = async (authData: any) => {
-    try {
-      // Try to send message to extension
-      if (window.chrome?.runtime?.sendMessage) {
-        window.chrome.runtime.sendMessage({
-          type: 'OAUTH_COMPLETE',
-          payload: authData
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.debug('Extension not available:', chrome.runtime.lastError)
-          } else {
-            console.log('✅ Extension notified of OAuth success')
+  const notifyExtension = async (authData: any): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+
+      // Timeout fallback
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          reject(new Error('Timeout: The extension did not respond. Is it installed and active?'))
+        }
+      }, 5000);
+
+      // Unified standardized payload
+      const payload = {
+        type: 'JOBORBIT_AUTH_RESPONSE',
+        payload: {
+          extensionToken: authData.extension_token,
+          sessionId: authData.session_id,
+          expiresAt: Math.floor(Date.now() / 1000) + (authData.expires_in || 2592000),
+          expiresIn: authData.expires_in || 2592000,
+          user: authData.user
+        }
+      };
+
+      const handleResponse = (response: any) => {
+        if (resolved) return;
+        
+        if (chrome.runtime.lastError) {
+          console.debug('Extension not available:', chrome.runtime.lastError);
+          return; // Allow postMessage fallback to work if applicable
+        } 
+        
+        if (response && response.success === false) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          reject(new Error(response.error || 'The extension reported a failure saving the session.'));
+        } else if (response && response.success) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          console.log('✅ Extension acknowledged OAuth success');
+          resolve();
+        }
+      };
+
+      try {
+        if (window.chrome?.runtime?.sendMessage) {
+          window.chrome.runtime.sendMessage(payload, handleResponse);
+        }
+        
+        if (window.opener) {
+          window.opener.postMessage(payload, '*');
+          // For window.opener, we can't easily wait for a direct callback response.
+          if (!window.chrome?.runtime?.sendMessage) {
+            setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolve();
+              }
+            }, 1000);
           }
-        })
+        } else if (!window.chrome?.runtime?.sendMessage) {
+          reject(new Error('Extension messaging not available. Please ensure the extension is installed.'));
+        }
+      } catch (error) {
+        reject(error);
       }
-      
-      // Also try postMessage for cross-window communication
-      if (window.opener) {
-        window.opener.postMessage({
-          type: 'OAUTH_COMPLETE',
-          payload: authData
-        }, '*')
-      }
-      
-    } catch (error) {
-      console.debug('Could not notify extension:', error)
-      // Non-critical error, don't throw
-    }
+    });
   }
 
   const handleGoogleLogin = async () => {

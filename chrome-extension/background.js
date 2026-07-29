@@ -136,8 +136,8 @@ async function handleMessage(message, sender, sendResponse) {
         await handleLogout(sendResponse)
         break
         
-      case 'OAUTH_COMPLETE':
-        await handleOAuthComplete(message, sendResponse)
+      case 'JOBORBIT_AUTH_RESPONSE':
+        await handleJobOrbitAuthResponse(message, sendResponse)
         break
         
       // Data sync messages
@@ -263,22 +263,30 @@ async function handleLogout(sendResponse) {
 }
 
 /**
- * Handle OAuth completion from auth window
+ * Handle unified auth response from web app (either via popup or spontaneous)
  */
-async function handleOAuthComplete(message, sendResponse) {
+async function handleJobOrbitAuthResponse(message, sendResponse) {
   try {
-    console.log('✅ OAuth completed, creating extension session...')
+    console.log('✅ Received unified auth response from web app')
     
-    // The auth manager will handle session creation
-    // This message is just for coordination between auth window and background
+    if (message.payload && message.payload.extensionToken) {
+      if (authManager) {
+        await authManager.storeExtensionSession({
+          extensionToken: message.payload.extensionToken,
+          sessionId: message.payload.sessionId,
+          expiresIn: message.payload.expiresIn || 2592000,
+          user: message.payload.user
+        })
+      }
+    }
     
     sendResponse({ 
       success: true, 
-      message: 'OAuth completion acknowledged' 
+      message: 'Auth session successfully stored' 
     })
     
   } catch (error) {
-    console.error('OAuth completion error:', error)
+    console.error('Auth session storage error:', error)
     sendResponse({ 
       success: false, 
       error: error.message 

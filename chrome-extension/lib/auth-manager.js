@@ -255,11 +255,7 @@ class ExtensionAuthManager {
       const authResult = await this.waitForAuthCompletion(authWindow)
       
       if (authResult.success) {
-        console.log('✅ OAuth completed successfully')
-        
-        // Create extension session with the received token
-        await this.createExtensionSession(authResult.token)
-        
+        console.log('✅ OAuth completed and session stored successfully')
       } else {
         throw new Error(authResult.error || 'OAuth failed')
       }
@@ -298,100 +294,38 @@ class ExtensionAuthManager {
    */
   async waitForAuthCompletion(authWindow) {
     return new Promise((resolve) => {
+      const startTime = Date.now()
+      
       const checkInterval = setInterval(() => {
+        // Check if we became logged in via background.js storing the session
+        if (this.isLoggedIn()) {
+          clearInterval(checkInterval)
+          chrome.windows.remove(authWindow.id).catch(() => {})
+          resolve({ success: true })
+          return
+        }
+        
+        // Check if window was closed
         chrome.windows.get(authWindow.id, (window) => {
           if (chrome.runtime.lastError || !window) {
-            // Window was closed
             clearInterval(checkInterval)
-            resolve({ success: false, error: 'OAuth cancelled' })
+            if (!this.isLoggedIn()) {
+              resolve({ success: false, error: 'OAuth cancelled' })
+            }
           }
         })
-      }, 1000)
-
-      // Listen for OAuth completion message
-      const messageListener = (message, sender, sendResponse) => {
-        if (message.type === 'OAUTH_COMPLETE') {
+        
+        // Timeout after 5 minutes
+        if (Date.now() - startTime > 5 * 60 * 1000) {
           clearInterval(checkInterval)
-          chrome.runtime.onMessage.removeListener(messageListener)
-          
-          // Close auth window
-          chrome.windows.remove(authWindow.id)
-          
-          resolve({
-            success: true,
-            token: message.payload.token,
-            user: message.payload.user
-          })
+          chrome.windows.remove(authWindow.id).catch(() => {})
+          resolve({ success: false, error: 'OAuth timeout' })
         }
-      }
-
-      chrome.runtime.onMessage.addListener(messageListener)
-
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        clearInterval(checkInterval)
-        chrome.runtime.onMessage.removeListener(messageListener)
-        chrome.windows.remove(authWindow.id)
-        resolve({ success: false, error: 'OAuth timeout' })
-      }, 5 * 60 * 1000)
+      }, 1000)
     })
   }
 
-  /**
-   * Create extension session after OAuth
-   */
-  async createExtensionSession(supabaseToken) {
-    try {
-      console.log('📱 Creating extension session...')
 
-      let response
-      if (typeof extensionApiClient !== 'undefined') {
-        response = await extensionApiClient.supabaseFunction('extension-session', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${supabaseToken}`,
-            'X-Extension-Token': 'true'
-          }
-        })
-      } else {
-        // Fallback to direct fetch
-        const fetchResponse = await fetch(`${this.config.webAppUrl}/functions/v1/extension-session`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${supabaseToken}`,
-            'Content-Type': 'application/json',
-            'X-Extension-Token': 'true'
-          }
-        })
-
-        if (!fetchResponse.ok) {
-          const error = await fetchResponse.text()
-          throw new Error(`Extension session creation failed: ${error}`)
-        }
-
-        const data = await fetchResponse.json()
-        response = { success: true, data }
-      }
-
-      if (response.success && response.data && response.data.extension_token) {
-        // Store the extension session
-        await this.storeExtensionSession({
-          extensionToken: response.data.extension_token,
-          sessionId: response.data.session_id,
-          expiresIn: response.data.extension_token_expires_in || 3600,
-          user: response.data.user
-        })
-        
-        console.log('✅ Extension session created')
-      } else {
-        throw new Error('Invalid extension session response')
-      }
-      
-    } catch (error) {
-      console.error('Failed to create extension session:', error)
-      throw error
-    }
-  }
 
   /**
    * Store extension session in storage

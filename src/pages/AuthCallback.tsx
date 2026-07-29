@@ -92,7 +92,7 @@ export default function AuthCallback() {
    * Return extension auth success as JSON response
    * This is called instead of navigating/redirecting
    */
-  const returnExtensionAuthSuccess = (data: {
+  const returnExtensionAuthSuccess = async (data: {
     extension_token: string
     session_id?: string
     expires_in?: number
@@ -100,72 +100,100 @@ export default function AuthCallback() {
       id?: string
       email?: string
     }
-  }) => {
-    console.log('✅ Extension auth success - returning JSON response')
+  }): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      console.log('✅ Extension auth success - returning JSON response');
 
-    // Calculate expires_at timestamp
-    const expiresAt = Math.floor(Date.now() / 1000) + (data.expires_in || 3600)
+      // Calculate expires_at timestamp
+      const expiresIn = data.expires_in || 2592000;
+      const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
 
-    // Build response
-    const response = {
-      success: true,
-      extensionToken: data.extension_token,
-      sessionId: data.session_id,
-      expiresAt: expiresAt,
-      user: {
-        id: data.user?.id,
-        email: data.user?.email,
-      },
-    }
-
-    console.log('📤 Sending extension session to extension...')
-
-    // Send to extension background script via chrome.runtime.sendMessage
-    if (window.chrome?.runtime?.id) {
-      try {
-        window.chrome.runtime.sendMessage(
-          {
-            type: 'EXTENSION_AUTH_SUCCESS',
-            payload: response,
+      // Build unified standardized response
+      const payload = {
+        type: 'JOBORBIT_AUTH_RESPONSE',
+        payload: {
+          extensionToken: data.extension_token,
+          sessionId: data.session_id,
+          expiresAt,
+          expiresIn,
+          user: {
+            id: data.user?.id,
+            email: data.user?.email,
           },
-          (extensionResponse) => {
-            if (chrome.runtime.lastError) {
-              console.debug('Extension not available:', chrome.runtime.lastError.message)
-            } else if (extensionResponse?.success) {
-              console.log('✅ Extension received session token')
-            }
+        }
+      };
+
+      console.log('📤 Sending extension session to extension...');
+      let resolved = false;
+
+      // Timeout fallback
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          reject(new Error('Timeout: The extension did not respond. Is it installed and active?'));
+        }
+      }, 5000);
+
+      const handleResponse = (extensionResponse: any) => {
+        if (resolved) return;
+        
+        if (chrome.runtime.lastError) {
+          console.debug('Extension not available:', chrome.runtime.lastError.message);
+          return; // Allow fallback to work
+        } 
+        
+        if (extensionResponse && extensionResponse.success === false) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          reject(new Error(extensionResponse.error || 'The extension reported a failure saving the session.'));
+        } else if (extensionResponse && extensionResponse.success) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          console.log('✅ Extension acknowledged session token');
+          
+          setState({
+            status: 'success',
+            message: 'Connected to extension!',
+          });
+          
+          setTimeout(() => {
+            window.close();
+          }, 3000);
+          
+          resolve();
+        }
+      };
+
+      // Send to extension background script via chrome.runtime.sendMessage
+      try {
+        if (window.chrome?.runtime?.id || window.chrome?.runtime?.sendMessage) {
+          window.chrome.runtime.sendMessage(payload, handleResponse);
+        }
+
+        // Fallback: Send to opener window
+        if (window.opener) {
+          window.opener.postMessage(payload, '*');
+          
+          if (!window.chrome?.runtime?.id && !window.chrome?.runtime?.sendMessage) {
+            setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                setState({ status: 'success', message: 'Connected to extension!' });
+                resolve();
+              }
+            }, 1000);
           }
-        )
+        } else if (!window.chrome?.runtime?.id && !window.chrome?.runtime?.sendMessage) {
+          reject(new Error('Extension messaging not available. Please ensure the extension is installed.'));
+        }
+
+        // Store in window object for direct access
+        (window as any).__EXTENSION_AUTH_RESPONSE = payload;
+        console.log('💾 Stored response in window.__EXTENSION_AUTH_RESPONSE');
       } catch (error) {
-        console.debug('Could not send to extension runtime:', error)
+        reject(error);
       }
-    }
-
-    // Fallback: Send to opener window (if opened via window.open)
-    if (window.opener) {
-      try {
-        window.opener.postMessage(
-          {
-            type: 'EXTENSION_AUTH_SUCCESS',
-            payload: response,
-          },
-          '*'
-        )
-        console.log('✅ Sent session to opener window')
-      } catch (error) {
-        console.debug('Could not send to opener:', error)
-      }
-    }
-
-    // Store in window object for direct access
-    (window as any).__EXTENSION_AUTH_RESPONSE = response
-    console.log('💾 Stored response in window.__EXTENSION_AUTH_RESPONSE')
-
-    // Show success page (optional - extension will close this window)
-    setState({
-      status: 'success',
-      message: 'Connected to extension!',
-    })
+    });
   }
 
   /**
@@ -229,57 +257,7 @@ export default function AuthCallback() {
     })
   }
 
-  /**
-   * Send extension session to extension via postMessage
-   */
-  const sendExtensionSessionToExtension = (extensionSession: ExtensionSessionResponse) => {
-    console.log('📤 Sending extension session to extension...')
 
-    // Send to extension background script
-    if (window.chrome?.runtime?.id) {
-      try {
-        window.chrome.runtime.sendMessage(
-          {
-            type: 'EXTENSION_SESSION_CREATED',
-            payload: {
-              extensionToken: extensionSession.extension_token,
-              sessionId: extensionSession.session_id,
-              expiresAt: Date.now() + (extensionSession.extension_token_expires_in || 3600) * 1000,
-            },
-          },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              console.debug('Extension not available for session:', chrome.runtime.lastError)
-            } else if (response?.success) {
-              console.log('✅ Extension received session')
-            }
-          }
-        )
-      } catch (error) {
-        console.debug('Could not send to extension:', error)
-      }
-    }
-
-    // Also send to any opener window (if opened via window.open)
-    if (window.opener) {
-      try {
-        window.opener.postMessage(
-          {
-            type: 'EXTENSION_SESSION_CREATED',
-            payload: {
-              extensionToken: extensionSession.extension_token,
-              sessionId: extensionSession.session_id,
-              expiresAt: Date.now() + (extensionSession.extension_token_expires_in || 3600) * 1000,
-            },
-          },
-          '*'
-        )
-        console.log('✅ Extension opener received session')
-      } catch (error) {
-        console.debug('Could not send to opener:', error)
-      }
-    }
-  }
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -348,7 +326,7 @@ export default function AuthCallback() {
               console.log('📤 Returning extension token to caller')
               
               // Return as JSON response instead of redirecting
-              returnExtensionAuthSuccess({
+              await returnExtensionAuthSuccess({
                 extension_token: extensionSession.extension_token,
                 session_id: extensionSession.session_id,
                 expires_in: extensionSession.extension_token_expires_in,
