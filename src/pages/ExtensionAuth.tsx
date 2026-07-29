@@ -122,7 +122,14 @@ export default function ExtensionAuth() {
       };
 
       try {
-        if (window.chrome?.runtime?.sendMessage) {
+        const extId = searchParams.get('extensionId') || sessionStorage.getItem('extensionId');
+        
+        if (window.chrome?.runtime?.sendMessage && extId) {
+          console.log('📤 Sending message to extension:', extId);
+          window.chrome.runtime.sendMessage(extId, payload, handleResponse);
+        } else if (window.chrome?.runtime?.sendMessage) {
+          // Fallback (might fail if not called from an extension context)
+          console.log('📤 Sending message without explicit extensionId');
           window.chrome.runtime.sendMessage(payload, handleResponse);
         }
         

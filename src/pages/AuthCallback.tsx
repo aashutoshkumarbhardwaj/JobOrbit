@@ -166,8 +166,13 @@ export default function AuthCallback() {
 
       // Send to extension background script via chrome.runtime.sendMessage
       try {
-        if (window.chrome?.runtime?.id || window.chrome?.runtime?.sendMessage) {
-          window.chrome.runtime.sendMessage(payload, handleResponse);
+        if (window.chrome?.runtime?.sendMessage) {
+          const extId = searchParams.get('extensionId') || sessionStorage.getItem('extensionId');
+          if (extId) {
+            window.chrome.runtime.sendMessage(extId, payload, handleResponse);
+          } else {
+            window.chrome.runtime.sendMessage(payload, handleResponse);
+          }
         }
 
         // Fallback: Send to opener window
@@ -213,19 +218,23 @@ export default function AuthCallback() {
     console.log('📤 Sending error to extension...')
 
     // Send to extension background script via chrome.runtime.sendMessage
-    if (window.chrome?.runtime?.id) {
+    if (window.chrome?.runtime?.sendMessage) {
       try {
-        window.chrome.runtime.sendMessage(
-          {
-            type: 'EXTENSION_AUTH_ERROR',
-            payload: response,
-          },
-          (extensionResponse) => {
-            if (chrome.runtime.lastError) {
-              console.debug('Extension not available:', chrome.runtime.lastError.message)
+        const extId = searchParams.get('extensionId') || sessionStorage.getItem('extensionId');
+        if (extId) {
+          window.chrome.runtime.sendMessage(
+            extId,
+            {
+              type: 'EXTENSION_AUTH_ERROR',
+              payload: response,
+            },
+            (extensionResponse) => {
+              if (chrome.runtime.lastError) {
+                console.debug('Extension not available:', chrome.runtime.lastError.message)
+              }
             }
-          }
-        )
+          )
+        }
       } catch (error) {
         console.debug('Could not send to extension runtime:', error)
       }
