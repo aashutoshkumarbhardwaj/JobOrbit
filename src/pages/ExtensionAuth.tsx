@@ -91,6 +91,7 @@ export default function ExtensionAuth() {
       // Unified standardized payload
       const payload = {
         type: 'JOBORBIT_AUTH_RESPONSE',
+        state: searchParams.get('state') || undefined,
         payload: {
           extensionToken: authData.extension_token,
           sessionId: authData.session_id,

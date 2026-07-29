@@ -111,6 +111,7 @@ export default function AuthCallback() {
       // Build unified standardized response
       const payload = {
         type: 'JOBORBIT_AUTH_RESPONSE',
+        state: searchParams.get('state') || sessionStorage.getItem('extensionAuthState') || undefined,
         payload: {
           extensionToken: data.extension_token,
           sessionId: data.session_id,
