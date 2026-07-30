@@ -118,26 +118,35 @@ export async function getExtensionSession(): Promise<ExtensionSessionResponse> {
     // 2. Create extension_sessions DB entry for this device
     // 3. Generate minimal Extension Session Token (sessionId + userId only)
     // 4. Return both token and session_id
-    // Call Supabase Edge Function directly — always uses correct URL
-    // regardless of VITE_API_URL environment variable value
+    // Call Supabase Edge Function via direct fetch — full control over headers
+    // supabase.functions.invoke() can cause header conflicts; direct fetch is reliable
     try {
-      const { data: fnData, error: fnError } = await supabase.functions.invoke(
-        'extension-session',
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      const httpResponse = await fetch(
+        `${supabaseUrl}/functions/v1/extension-session`,
         {
           method: 'GET',
           headers: {
-            Authorization: `Bearer ${data.session.access_token}`,
+            'Authorization': `Bearer ${data.session.access_token}`,
+            'apikey': supabaseAnonKey,
+            'Content-Type': 'application/json',
+            'x-client-info': 'joborbit-web',
           },
         }
       )
 
-      if (fnError) {
-        console.error('Edge function error:', fnError)
+      if (!httpResponse.ok) {
+        const errText = await httpResponse.text()
+        console.error('Edge function HTTP error:', httpResponse.status, errText)
         return {
           success: false,
-          error: fnError.message || 'Failed to call extension-session',
+          error: `Extension session error (${httpResponse.status})`,
         }
       }
+
+      const fnData = await httpResponse.json()
 
       // Edge function wraps response in { success, data }
       const responseData = fnData?.data || fnData
