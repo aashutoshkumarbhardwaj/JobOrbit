@@ -16,7 +16,7 @@ const ALLOWED_WEB_ORIGIN = Deno.env.get('APP_URL') || Deno.env.get('VITE_APP_URL
 export const webCorsHeaders = {
   'Access-Control-Allow-Origin': ALLOWED_WEB_ORIGIN,
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token, x-device-id, x-device-name',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token, x-device-id, x-device-name, apikey, x-client-info',
   'Access-Control-Allow-Credentials': ALLOWED_WEB_ORIGIN === '*' ? 'false' : 'true',
   'Access-Control-Max-Age': '3600',
 }
@@ -28,7 +28,7 @@ export const webCorsHeaders = {
 export const extensionCorsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token, x-extension-id',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-extension-token, x-extension-id, apikey, x-client-info',
   'Access-Control-Max-Age': '3600',
 }
 
