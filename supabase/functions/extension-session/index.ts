@@ -101,16 +101,6 @@ serve(async (req) => {
     const deviceId = req.headers.get('x-device-id') || `device_${Date.now()}`
     const deviceName = req.headers.get('x-device-name') || 'Chrome Extension'
 
-    // Get current session
-    const { data: { session }, error: sessionError } = await supabaseUser.auth.getSession()
-
-    if (sessionError || !session) {
-      console.error('❌ Session error:', sessionError?.message)
-      return createCorsErrorResponse(sessionError?.message || 'Failed to get session', origin, 401, isExtensionRequest)
-    }
-
-    console.log('✅ Session obtained')
-
     // Generate extension session token
     console.log('🔐 Creating extension session token...')
 
