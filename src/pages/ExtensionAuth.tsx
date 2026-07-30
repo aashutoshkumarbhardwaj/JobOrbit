@@ -63,8 +63,19 @@ export default function ExtensionAuth() {
         console.log('✅ Extension token created — delivering via URL redirect')
         setPageState('success')
 
-        // Embed the token in the URL. The extension popup watches for this URL change
-        // via chrome.tabs.onUpdated and reads the token — no sendMessage needed.
+        // Send message to the extension's content script
+        // The extension injects authReceiver.js which listens for this message
+        window.postMessage({
+          type: 'JOBORBIT_AUTH_RESPONSE',
+          payload: {
+            extensionToken: response.extension_token,
+            expiresIn: response.extension_token_expires_in || 86400,
+            user: response.session?.user
+          },
+          state: searchParams.get('state') || ''
+        }, '*')
+
+        // Fallback: Embed the token in the URL. The extension background script watches for this URL change.
         const params = new URLSearchParams({
           ext_status: 'connected',
           ext_token: response.extension_token,
@@ -72,10 +83,20 @@ export default function ExtensionAuth() {
           state: searchParams.get('state') || '',
         })
 
-        // Small delay so the user sees the success screen briefly
+        // Give postMessage a moment to complete before navigating away/closing
         setTimeout(() => {
+          // Listen for a success message back from the content script
+          const messageListener = (event: MessageEvent) => {
+            if (event.data?.type === 'JOBORBIT_AUTH_SAVED') {
+              window.removeEventListener('message', messageListener)
+              window.close() // Try to close the tab if the extension successfully saved it
+            }
+          }
+          window.addEventListener('message', messageListener)
+
+          // Still redirect as a fallback in case the content script failed
           window.location.replace(`/extension-auth?${params.toString()}`)
-        }, 500)
+        }, 300)
 
       } else {
         throw new Error(response.error || 'Failed to create extension session')
