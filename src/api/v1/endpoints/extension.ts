@@ -118,23 +118,41 @@ export async function getExtensionSession(): Promise<ExtensionSessionResponse> {
     // 2. Create extension_sessions DB entry for this device
     // 3. Generate minimal Extension Session Token (sessionId + userId only)
     // 4. Return both token and session_id
+    // Call Supabase Edge Function directly — always uses correct URL
+    // regardless of VITE_API_URL environment variable value
     try {
-      const response = await apiClient.get<ExtensionSessionResponse>(
-        '/extension-session'
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        'extension-session',
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+        }
       )
 
-      if (response.success && response.extension_token && response.session_id) {
+      if (fnError) {
+        console.error('Edge function error:', fnError)
+        return {
+          success: false,
+          error: fnError.message || 'Failed to call extension-session',
+        }
+      }
+
+      // Edge function wraps response in { success, data }
+      const responseData = fnData?.data || fnData
+
+      if (fnData?.success && responseData?.extension_token) {
         console.log('✅ Extension session created')
 
-        // Store extension token + session ID locally for future API calls
-        const expiresIn = response.extension_token_expires_in || 3600
-        storeExtensionToken(response.extension_token, response.session_id, expiresIn)
+        const expiresIn = responseData.extension_token_expires_in || 3600
+        storeExtensionToken(responseData.extension_token, responseData.session_id, expiresIn)
 
         return {
           success: true,
-          extension_token: response.extension_token,
+          extension_token: responseData.extension_token,
           extension_token_expires_in: expiresIn,
-          session_id: response.session_id,
+          session_id: responseData.session_id,
           session: {
             access_token: data.session.access_token,
             refresh_token: data.session.refresh_token || '',
@@ -149,11 +167,12 @@ export async function getExtensionSession(): Promise<ExtensionSessionResponse> {
         }
       }
 
-      console.warn('⚠️  No extension token in response')
+      console.warn('⚠️  No extension token in response:', fnData)
       return {
         success: false,
         error: 'Failed to create extension session',
       }
+
     } catch (backendError) {
       console.error('Backend error getting extension session:', backendError)
 
