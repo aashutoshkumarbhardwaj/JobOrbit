@@ -64,9 +64,10 @@ export function useSessionTimeout(): SessionTimeoutState {
 
       setTimeUntilExpiry(secondsRemaining)
 
-      // Show warning at 50-minute mark (600 seconds before 1-hour expiry)
-      // For 1-hour sessions: warning at 50 min = 600 seconds before
-      const warningThreshold = 600 // 10 minutes before expiry (conservative)
+      // Show warning at 1-minute mark (60 seconds before expiry)
+      // Supabase automatically refreshes tokens in the background. We only want to show
+      // this warning if the automatic refresh failed (e.g. network disconnected).
+      const warningThreshold = 60 // 1 minute before expiry
       
       if (secondsRemaining <= warningThreshold) {
         setShowWarning(true)
