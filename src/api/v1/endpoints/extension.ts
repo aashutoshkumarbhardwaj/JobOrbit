@@ -122,7 +122,12 @@ export async function getExtensionSession(): Promise<ExtensionSessionResponse> {
     // supabase.functions.invoke() can cause header conflicts; direct fetch is reliable
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+      // Edge functions require the legacy JWT anon key format (eyJ...), not the new publishable key format
+      // We hardcode the legacy public anon key here as a fallback since Vercel env vars only have the publishable key
+      let supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+      if (supabaseAnonKey?.startsWith('sb_publishable_')) {
+        supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzYmtqa3dlZnN6cXF6dWtnZHRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0MTU5NjIsImV4cCI6MjA4Mzk5MTk2Mn0.fdfwlLONoRgbpZNWs9azf8hEM1I1ozdDqb10iXKfyKc'
+      }
 
       const httpResponse = await fetch(
         `${supabaseUrl}/functions/v1/extension-session`,
